@@ -1,0 +1,3126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ISLAND</title>
+<style>
+  :root {
+    --fg: #d7e2d0;
+    --dim: #7f8f78;
+    --accent: #9fd58a;
+    --bg: #070a08;
+    --panel: rgba(8, 14, 10, 0.92);
+    --border: #2d3b2c;
+    --font: "Consolas", "Menlo", "DejaVu Sans Mono", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: var(--bg); color: var(--fg); font-family: var(--font);
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: #000; cursor: none; }
+  canvas#mapview { position: fixed; inset: 0; width: 100%; height: 100%; display: none; background: rgba(3,6,4,0.97); }
+  .screen {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    flex-direction: column; background: radial-gradient(ellipse at center, rgba(10,18,12,0.86), rgba(3,5,4,0.97));
+    z-index: 10;
+  }
+  .screen.active { display: flex; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); padding: 28px 34px; min-width: 360px; max-width: 92vw;
+    box-shadow: 0 0 40px rgba(0,0,0,0.6);
+  }
+  h1.title {
+    font-size: 64px; letter-spacing: 0.45em; margin: 0 0 6px 0; font-weight: normal; color: var(--accent);
+    text-shadow: 0 0 18px rgba(159,213,138,0.35);
+  }
+  .subtitle { color: var(--dim); font-size: 13px; letter-spacing: 0.3em; margin-bottom: 26px; text-align: center; }
+  pre.ascii-art { color: #5f7a56; font-size: 12px; line-height: 12px; margin: 0 0 18px 0; text-align: left; }
+  label { display: block; color: var(--dim); font-size: 12px; margin: 10px 0 4px; letter-spacing: 0.1em; }
+  input[type=text] {
+    width: 100%; background: #0d130f; border: 1px solid var(--border); color: var(--fg); font-family: var(--font);
+    font-size: 16px; padding: 8px 10px; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  select {
+    width: 100%; background: #0d130f; border: 1px solid var(--border); color: var(--fg); font-family: var(--font);
+    font-size: 14px; padding: 6px 8px; outline: none;
+  }
+  button {
+    font-family: var(--font); font-size: 15px; letter-spacing: 0.2em; padding: 10px 18px; margin: 6px 4px 0 0;
+    background: #101a12; color: var(--fg); border: 1px solid var(--border); cursor: pointer; text-transform: uppercase;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: #16261a; border-color: #4b6b44; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; }
+  .error { color: #e08a7a; font-size: 12px; min-height: 16px; margin-top: 6px; }
+  .controls { color: var(--dim); font-size: 12px; line-height: 1.7; margin-top: 18px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .controls b { color: var(--fg); font-weight: normal; }
+  .setting { display: grid; grid-template-columns: 170px 1fr 60px; gap: 10px; align-items: center; margin: 6px 0; font-size: 13px; }
+  .setting .val { color: var(--accent); text-align: right; font-size: 12px; }
+  .settings-grid { max-height: 70vh; overflow-y: auto; padding-right: 6px; }
+  .settings-grid::-webkit-scrollbar { width: 6px; }
+  .settings-grid::-webkit-scrollbar-thumb { background: var(--border); }
+  h2 { font-weight: normal; letter-spacing: 0.3em; font-size: 18px; margin: 0 0 14px; color: var(--accent); }
+  h3 { font-weight: normal; letter-spacing: 0.2em; font-size: 12px; margin: 14px 0 6px; color: var(--dim); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  #loadbar { width: 100%; height: 10px; background: #0d130f; border: 1px solid var(--border); margin-top: 10px; }
+  #loadfill { height: 100%; width: 0%; background: var(--accent); transition: width 0.12s linear; }
+  #loadtext { color: var(--dim); font-size: 12px; margin-top: 8px; min-height: 16px; }
+  #loadlog { color: #4f6448; font-size: 11px; margin-top: 8px; white-space: pre; max-height: 160px; overflow: hidden; }
+  #hud { position: fixed; left: 0; right: 0; bottom: 10px; text-align: center; color: rgba(215,226,208,0.35); font-size: 11px; letter-spacing: 0.15em; pointer-events: none; display: none; }
+  #crosshair { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); color: rgba(255,255,255,0.55); font-size: 16px; pointer-events: none; display: none; }
+  #clickhint { position: fixed; left: 50%; top: 44%; transform: translate(-50%,-50%); color: rgba(215,226,208,0.8); font-size: 14px; letter-spacing: 0.2em; pointer-events: none; display: none; background: rgba(0,0,0,0.5); padding: 10px 16px; border: 1px solid var(--border); }
+  .small { font-size: 11px; color: var(--dim); }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<canvas id="mapview"></canvas>
+<div id="crosshair">+</div>
+<div id="clickhint">CLICK TO LOOK AROUND · ESC FOR MENU</div>
+<div id="hud">M MAP · ESC MENU</div>
+
+<!-- Title screen -->
+<div id="title" class="screen active">
+  <div class="panel" style="text-align:center">
+<pre class="ascii-art">                 ^
+            ^   /^\      ^
+      .    /^\ /^^^\    /^\   Y
+    .  ~  /^^^^^^^^^\  /^^^\  | Y
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</pre>
+    <h1 class="title">ISLAND</h1>
+    <div class="subtitle">A FIRST-PERSON ASCII EXPLORATION</div>
+    <div style="text-align:left">
+      <label for="seed">WORLD SEED</label>
+      <div class="row">
+        <input type="text" id="seed" maxlength="48" spellcheck="false" autocomplete="off" placeholder="type any word or number">
+        <button id="btn-random" style="flex:0 0 auto; margin:0; padding:8px 12px; font-size:12px">RANDOM</button>
+      </div>
+      <div class="error" id="seed-error"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="btn-play" class="primary">PLAY</button>
+      <button id="btn-settings-title">SETTINGS</button>
+    </div>
+    <div class="controls" style="text-align:left">
+      <b>W A S D</b> move · <b>MOUSE</b> look · <b>SHIFT</b> sprint · <b>SPACE</b> jump<br>
+      <b>M</b> island map · <b>ESC</b> release mouse / pause menu<br>
+      <span class="small">Walk, swim and wander. There is nothing to fight and nothing you must do.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Loading screen -->
+<div id="loading" class="screen">
+  <div class="panel" style="width:460px">
+    <h2>SHAPING THE ISLAND</h2>
+    <div id="loadbar"><div id="loadfill"></div></div>
+    <div id="loadtext">…</div>
+    <div id="loadlog"></div>
+  </div>
+</div>
+
+<!-- Pause menu -->
+<div id="pause" class="screen">
+  <div class="panel" style="text-align:center">
+    <h2>PAUSED</h2>
+    <div class="small" id="pause-info"></div>
+    <div style="margin-top:14px; display:flex; flex-direction:column; gap:4px">
+      <button id="btn-resume" class="primary">RESUME</button>
+      <button id="btn-settings-pause">SETTINGS</button>
+      <button id="btn-title">RETURN TO TITLE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings (shared) -->
+<div id="settings" class="screen">
+  <div class="panel" style="width:560px">
+    <h2>SETTINGS</h2>
+    <div class="settings-grid">
+      <h3>GRAPHICS</h3>
+      <div class="setting"><span>Quality preset</span>
+        <select id="s-quality">
+          <option value="low">Low</option><option value="medium">Medium</option>
+          <option value="high" selected>High</option><option value="ultra">Ultra</option>
+        </select><span class="val"></span></div>
+      <div class="setting"><span>ASCII density (columns)</span><input type="range" id="s-density" min="80" max="260" step="10" value="160"><span class="val" id="v-density"></span></div>
+      <div class="setting"><span>Object render distance</span><input type="range" id="s-renderdist" min="120" max="900" step="20" value="420"><span class="val" id="v-renderdist"></span></div>
+      <div class="setting"><span>Field of view</span><input type="range" id="s-fov" min="60" max="120" step="1" value="90"><span class="val" id="v-fov"></span></div>
+      <div class="setting"><span>Weather effects</span>
+        <select id="s-weatherfx"><option value="full" selected>Full</option><option value="reduced">Reduced</option><option value="off">Off</option></select><span class="val"></span></div>
+      <div class="setting"><span>Wildlife &amp; vegetation motion</span>
+        <select id="s-life"><option value="on" selected>On</option><option value="off">Off</option></select><span class="val"></span></div>
+      <div class="setting"><span>Crosshair</span>
+        <select id="s-crosshair"><option value="on" selected>On</option><option value="off">Off</option></select><span class="val"></span></div>
+      <h3>CONTROLS</h3>
+      <div class="setting"><span>Mouse sensitivity</span><input type="range" id="s-sens" min="0.2" max="3" step="0.1" value="1"><span class="val" id="v-sens"></span></div>
+      <div class="setting"><span>Walk speed</span><input type="range" id="s-walk" min="2" max="9" step="0.5" value="4.5"><span class="val" id="v-walk"></span></div>
+      <div class="setting"><span>Sprint speed</span><input type="range" id="s-sprint" min="4" max="16" step="0.5" value="8.5"><span class="val" id="v-sprint"></span></div>
+      <div class="setting"><span>Invert mouse Y</span>
+        <select id="s-inverty"><option value="no" selected>No</option><option value="yes">Yes</option></select><span class="val"></span></div>
+      <h3>AUDIO</h3>
+      <div class="setting"><span>Ambient audio</span>
+        <select id="s-mute"><option value="on" selected>On</option><option value="off">Muted</option></select><span class="val"></span></div>
+      <div class="setting"><span>Volume</span><input type="range" id="s-volume" min="0" max="100" step="1" value="60"><span class="val" id="v-volume"></span></div>
+      <h3>WORLD</h3>
+      <div class="setting"><span>Day length (minutes)</span><input type="range" id="s-daylen" min="4" max="30" step="1" value="12"><span class="val" id="v-daylen"></span></div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button id="btn-settings-back" class="primary">BACK</button>
+      <button id="btn-settings-defaults">DEFAULTS</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+ *  ISLAND — a first-person ASCII island explorer
+ *  Single-file, dependency-free. Sections:
+ *   10 core (rng / hash / noise / math)      50 renderer (ASCII perspective)
+ *   20 world generation (geography)          60 map
+ *   25 mountain visibility guarantee         70 atmosphere (day/night, weather, audio, life)
+ *   30 chunks (local scenery)                80 game (menus, settings, loop)
+ *   40 player (movement / collision)
+ * ===================================================================== */
+
+// ----------------------------------------------------------------- math
+const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const smoothstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const TAU = Math.PI * 2;
+const fract = (x) => x - Math.floor(x);
+
+// ----------------------------------------------------------------- seed hashing / RNG
+// cyrb128: string -> 4x32bit
+function cyrb128(str) {
+  let h1 = 1779033703, h2 = 3144134277, h3 = 1013904242, h4 = 2773480762;
+  for (let i = 0, k; i < str.length; i++) {
+    k = str.charCodeAt(i);
+    h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
+    h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
+    h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
+    h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
+  }
+  h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+  h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+  h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+  h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+  return [(h1 ^ h2 ^ h3 ^ h4) >>> 0, (h2 ^ h1) >>> 0, (h3 ^ h1) >>> 0, (h4 ^ h1) >>> 0];
+}
+// sfc32 PRNG
+function sfc32(a, b, c, d) {
+  return function () {
+    a |= 0; b |= 0; c |= 0; d |= 0;
+    const t = (a + b | 0) + d | 0;
+    d = d + 1 | 0;
+    a = b ^ b >>> 9;
+    b = c + (c << 3) | 0;
+    c = (c << 21 | c >>> 11);
+    c = c + t | 0;
+    return (t >>> 0) / 4294967296;
+  };
+}
+class RNG {
+  constructor(seedStr) {
+    const s = cyrb128(String(seedStr));
+    this.next = sfc32(s[0], s[1], s[2], s[3]);
+    for (let i = 0; i < 12; i++) this.next();
+  }
+  float() { return this.next(); }
+  range(a, b) { return a + (b - a) * this.next(); }
+  int(a, b) { return a + Math.floor(this.next() * (b - a + 1)); }
+  pick(arr) { return arr[Math.floor(this.next() * arr.length)]; }
+  chance(p) { return this.next() < p; }
+}
+// integer coordinate hash -> [0,1)
+function hash2(seed, x, y) {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(seed | 0, 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+function hash3(seed, x, y, z) {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(z | 0, 2147483647 ^ 0x27d4eb2d) ^ Math.imul(seed | 0, 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+// ----------------------------------------------------------------- noise
+// Seeded 2D gradient noise (Perlin-style) + fBm + ridged
+class Noise2D {
+  constructor(rng) {
+    this.perm = new Uint8Array(512);
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    for (let i = 255; i > 0; i--) { const j = Math.floor(rng.float() * (i + 1)); const t = p[i]; p[i] = p[j]; p[j] = t; }
+    for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
+    this.gx = new Float32Array(256); this.gz = new Float32Array(256);
+    for (let i = 0; i < 256; i++) { const a = rng.float() * TAU; this.gx[i] = Math.cos(a); this.gz[i] = Math.sin(a); }
+  }
+  // returns roughly [-1, 1]
+  get(x, y) {
+    const X = Math.floor(x), Y = Math.floor(y);
+    const xf = x - X, yf = y - Y;
+    const xi = X & 255, yi = Y & 255;
+    const p = this.perm;
+    const g00 = p[p[xi] + yi], g10 = p[p[xi + 1] + yi], g01 = p[p[xi] + yi + 1], g11 = p[p[xi + 1] + yi + 1];
+    const d00 = this.gx[g00] * xf + this.gz[g00] * yf;
+    const d10 = this.gx[g10] * (xf - 1) + this.gz[g10] * yf;
+    const d01 = this.gx[g01] * xf + this.gz[g01] * (yf - 1);
+    const d11 = this.gx[g11] * (xf - 1) + this.gz[g11] * (yf - 1);
+    const u = xf * xf * xf * (xf * (xf * 6 - 15) + 10);
+    const v = yf * yf * yf * (yf * (yf * 6 - 15) + 10);
+    return lerp(lerp(d00, d10, u), lerp(d01, d11, u), v) * 1.41;
+  }
+  fbm(x, y, octaves, lacunarity = 2.0, gain = 0.5) {
+    let sum = 0, amp = 1, norm = 0, f = 1;
+    for (let i = 0; i < octaves; i++) {
+      sum += this.get(x * f, y * f) * amp; norm += amp; amp *= gain; f *= lacunarity;
+    }
+    return sum / norm;
+  }
+  ridged(x, y, octaves) {
+    let sum = 0, amp = 1, norm = 0, f = 1;
+    for (let i = 0; i < octaves; i++) {
+      const n = 1 - Math.abs(this.get(x * f, y * f)); sum += n * n * amp; norm += amp; amp *= 0.5; f *= 2.1;
+    }
+    return sum / norm;
+  }
+}
+
+// ----------------------------------------------------------------- colors
+// Colors are packed ints 0xRRGGBB
+const rgb = (r, g, b) => ((clamp(r, 0, 255) | 0) << 16) | ((clamp(g, 0, 255) | 0) << 8) | (clamp(b, 0, 255) | 0);
+function mixColor(a, b, t) {
+  if (t <= 0) return a; if (t >= 1) return b;
+  const ar = a >> 16 & 255, ag = a >> 8 & 255, ab = a & 255;
+  const br = b >> 16 & 255, bg = b >> 8 & 255, bb = b & 255;
+  return ((ar + (br - ar) * t) << 16 | (ag + (bg - ag) * t) << 8 | (ab + (bb - ab) * t)) >>> 0 & 0xffffff;
+}
+function scaleColor(c, s) {
+  let r = (c >> 16 & 255) * s, g = (c >> 8 & 255) * s, b = (c & 255) * s;
+  if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
+  return (r << 16 | g << 8 | b) >>> 0 & 0xffffff;
+}
+// multiply color by light color (0xRRGGBB used as per-channel multipliers /255) and scalar
+function lightColor(c, lightRGB, s) {
+  let r = (c >> 16 & 255) * (lightRGB >> 16 & 255) / 255 * s;
+  let g = (c >> 8 & 255) * (lightRGB >> 8 & 255) / 255 * s;
+  let b = (c & 255) * (lightRGB & 255) / 255 * s;
+  if (r > 255) r = 255; if (g > 255) g = 255; if (b > 255) b = 255;
+  return (r << 16 | g << 8 | b) >>> 0 & 0xffffff;
+}
+const cssColor = (c) => '#' + (c & 0xffffff).toString(16).padStart(6, '0');
+
+// ----------------------------------------------------------------- async yield for loading
+const nextTick = () => new Promise(r => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 0)));
+/* =====================================================================
+ * 20 — WORLD GENERATION (global geography)
+ * Deterministic coarse heightfield + water + biome grids, generated once per world.
+ * ===================================================================== */
+const GRID = 400;            // cells per side
+const CELL = 6;              // meters per cell
+const WORLD_SIZE = GRID * CELL;   // 2400 m
+const HALF = WORLD_SIZE / 2;      // 1200 m
+const SEA_LEVEL = 0;
+const DEEP_OCEAN = -45;
+const NO_WATER = -1e9;
+
+const BIOME = {
+  OCEAN: 0, SHALLOW: 1, BEACH: 2, CLIFF: 3, GRASS: 4, MEADOW: 5, FOREST: 6, DENSE_FOREST: 7,
+  HILLS: 8, ROCK: 9, SNOW: 10, LAKE: 11, RIVER: 12, PATH: 13, MARSH: 14, SUMMIT: 15,
+};
+const BIOME_NAMES = ['Ocean', 'Shallows', 'Beach', 'Cliffs', 'Grassland', 'Meadow', 'Forest', 'Dense forest',
+  'Rocky hills', 'Bare rock', 'Snow', 'Lake', 'River', 'Path', 'Marsh', 'Summit'];
+
+class World {
+  constructor(seedStr) {
+    this.seedStr = String(seedStr);
+    this.seedInt = cyrb128(this.seedStr)[0] | 0;
+    this.rng = new RNG(this.seedStr);
+    this.nTerrain = new Noise2D(new RNG(this.seedStr + ':terrain'));
+    this.nCoast = new Noise2D(new RNG(this.seedStr + ':coast'));
+    this.nMoist = new Noise2D(new RNG(this.seedStr + ':moist'));
+    this.nMeadow = new Noise2D(new RNG(this.seedStr + ':meadow'));
+    this.nDetail = new Noise2D(new RNG(this.seedStr + ':detail'));
+    this.nRidge = new Noise2D(new RNG(this.seedStr + ':ridge'));
+    const N = GRID * GRID;
+    this.h = new Float32Array(N);          // terrain height (m)
+    this.water = new Float32Array(N).fill(NO_WATER); // inland water surface level (lakes/rivers)
+    this.riverMask = new Uint8Array(N);
+    this.biome = new Uint8Array(N);
+    this.road = new Uint8Array(N);         // worn path intensity 0..255
+    this.gx = new Float32Array(N);         // height gradient
+    this.gz = new Float32Array(N);
+    this.coastDist = new Uint16Array(N);   // cells to ocean
+    this.waterDist = new Uint16Array(N);   // cells to any water
+    this.moist = new Float32Array(N);
+    this.lakes = []; this.rivers = []; this.landmarks = []; this.paths = [];
+    this.stats = {};
+    this.ready = false;
+  }
+
+  // ------------------------------------------------------------ helpers
+  idx(i, j) { return j * GRID + i; }
+  cellX(i) { return -HALF + i * CELL; }
+  cellZ(j) { return -HALF + j * CELL; }
+  inGrid(i, j) { return i >= 0 && j >= 0 && i < GRID && j < GRID; }
+
+  // bilinear coarse terrain (no detail)
+  coarseHeightAt(x, z) {
+    const fx = (x + HALF) / CELL, fz = (z + HALF) / CELL;
+    const i = Math.floor(fx), j = Math.floor(fz);
+    if (i < 0 || j < 0 || i >= GRID - 1 || j >= GRID - 1) return DEEP_OCEAN;
+    const tx = fx - i, tz = fz - j;
+    const h = this.h, k = j * GRID + i;
+    const a = h[k], b = h[k + 1], c = h[k + GRID], d = h[k + GRID + 1];
+    return (a + (b - a) * tx) * (1 - tz) + (c + (d - c) * tx) * tz;
+  }
+  // small-scale surface detail, |detail| <= ~0.8 m, by construction (visibility margins depend on it)
+  detailAt(x, z) {
+    return 0.55 * this.nDetail.get(x * 0.13, z * 0.13) + 0.2 * this.nDetail.get(x * 0.41 + 7.3, z * 0.41 - 2.1);
+  }
+  heightAt(x, z) {
+    const c = this.coarseHeightAt(x, z);
+    if (c <= DEEP_OCEAN + 0.01) return c;
+    const w = this.waterLevelAt(x, z);
+    if (c < w - 1.5) return c; // under water: no detail needed
+    return c + this.detailAt(x, z);
+  }
+  // Water surface at a point: sea level, or a CONTINUOUS (bilinear) inland water surface.
+  // Nodes of the quad without inland water take the quad max, so the surface is smooth within a quad;
+  // at lake fringes the rim terrain (always above lake level) is the binding occluder, not water.
+  waterLevelAt(x, z) {
+    const fx = (x + HALF) / CELL, fz = (z + HALF) / CELL;
+    const i = Math.floor(fx), j = Math.floor(fz);
+    if (i < 0 || j < 0 || i >= GRID - 1 || j >= GRID - 1) return SEA_LEVEL;
+    const w = this.water, k = j * GRID + i;
+    let a = w[k], b = w[k + 1], c = w[k + GRID], d = w[k + GRID + 1];
+    let m = a > b ? a : b; if (c > m) m = c; if (d > m) m = d;
+    if (m <= SEA_LEVEL) return SEA_LEVEL;
+    if (a <= NO_WATER + 1) a = m; if (b <= NO_WATER + 1) b = m;
+    if (c <= NO_WATER + 1) c = m; if (d <= NO_WATER + 1) d = m;
+    const tx = fx - i, tz = fz - j;
+    const v = (a + (b - a) * tx) * (1 - tz) + (c + (d - c) * tx) * tz;
+    return v > SEA_LEVEL ? v : SEA_LEVEL;
+  }
+  // depth of water above terrain (0 if dry)
+  waterDepthAt(x, z) {
+    const h = this.heightAt(x, z), w = this.waterLevelAt(x, z);
+    return w > h ? w - h : 0;
+  }
+  biomeAt(x, z) {
+    const i = Math.round((x + HALF) / CELL), j = Math.round((z + HALF) / CELL);
+    if (i < 0 || j < 0 || i >= GRID || j >= GRID) return BIOME.OCEAN;
+    return this.biome[j * GRID + i];
+  }
+  moistAt(x, z) {
+    const i = clamp(Math.round((x + HALF) / CELL), 0, GRID - 1), j = clamp(Math.round((z + HALF) / CELL), 0, GRID - 1);
+    return this.moist[j * GRID + i];
+  }
+  roadAt(x, z) {
+    const fx = (x + HALF) / CELL, fz = (z + HALF) / CELL;
+    const i = Math.floor(fx), j = Math.floor(fz);
+    if (i < 0 || j < 0 || i >= GRID - 1 || j >= GRID - 1) return 0;
+    const tx = fx - i, tz = fz - j, r = this.road, k = j * GRID + i;
+    return ((r[k] * (1 - tx) + r[k + 1] * tx) * (1 - tz) + (r[k + GRID] * (1 - tx) + r[k + GRID + 1] * tx) * tz) / 255;
+  }
+  // normal-ish gradient at point (from coarse grid)
+  gradAt(x, z) {
+    const i = clamp(Math.round((x + HALF) / CELL), 0, GRID - 1), j = clamp(Math.round((z + HALF) / CELL), 0, GRID - 1);
+    const k = j * GRID + i;
+    return [this.gx[k], this.gz[k]];
+  }
+  slopeAt(x, z) { const g = this.gradAt(x, z); return Math.hypot(g[0], g[1]); }
+  coastDistAt(x, z) {
+    const i = clamp(Math.round((x + HALF) / CELL), 0, GRID - 1), j = clamp(Math.round((z + HALF) / CELL), 0, GRID - 1);
+    return this.coastDist[j * GRID + i] * CELL;
+  }
+  isLandCell(k) { return this.h[k] >= SEA_LEVEL && this.water[k] <= SEA_LEVEL; }
+
+  // ------------------------------------------------------------ generation pipeline
+  async generate(progress) {
+    const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    progress(0.02, 'Reading the seed');
+    this.planGeography();
+    await nextTick();
+    await this.genBaseTerrain(progress);
+    progress(0.42, 'Filling lakes');
+    this.genLakes();
+    await nextTick();
+    progress(0.46, 'Tracing rivers');
+    this.genRivers();
+    await nextTick();
+    this.guarantee = new MountainGuarantee(this);
+    await this.guarantee.run((p, msg) => progress(0.5 + p * 0.36, msg));
+    progress(0.87, 'Measuring slopes');
+    this.computeGradients();
+    this.computeDistances();
+    await nextTick();
+    progress(0.9, 'Growing biomes');
+    this.classifyBiomes();
+    await nextTick();
+    progress(0.95, 'Placing landmarks and paths');
+    this.genLandmarks();
+    this.genPaths();
+    this.classifyBiomes(true);
+    this.pickSpawn();
+    this.stats.genMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
+    this.ready = true;
+    progress(1, 'Ready');
+  }
+
+  planGeography() {
+    const r = this.rng;
+    this.center = { x: r.range(-70, 70), z: r.range(-70, 70) };
+    this.islandR = r.range(860, 940);
+    // dominant mountain: offset from island centre
+    const a = r.range(0, TAU), d = r.range(0.06, 0.3) * this.islandR;
+    this.summit = {
+      x: this.center.x + Math.cos(a) * d, z: this.center.z + Math.sin(a) * d,
+      h: r.range(340, 380), R: r.range(430, 500), capR: 14, dir: a,
+    };
+    // snap summit to a grid node so the tip is exactly representable
+    const si = Math.round((this.summit.x + HALF) / CELL), sj = Math.round((this.summit.z + HALF) / CELL);
+    this.summit.x = this.cellX(si); this.summit.z = this.cellZ(sj); this.summit.i = si; this.summit.j = sj;
+    this.maxSecondary = this.summit.h * 0.4;
+    // secondary ridge on the far side of the island
+    const ra = a + Math.PI + r.range(-0.9, 0.9), rd = r.range(0.35, 0.6) * this.islandR;
+    const rx = this.center.x + Math.cos(ra) * rd, rz = this.center.z + Math.sin(ra) * rd;
+    const rdir = r.range(0, TAU), rl = r.range(160, 260);
+    this.ridge = {
+      x1: rx - Math.cos(rdir) * rl, z1: rz - Math.sin(rdir) * rl, x2: rx + Math.cos(rdir) * rl, z2: rz + Math.sin(rdir) * rl,
+      h: r.range(85, 118), R: r.range(190, 260),
+    };
+    this.cliffPhase = r.range(0, 100);
+  }
+
+  coastRadiusAt(theta, dx, dz) {
+    const n = this.nCoast;
+    const ang = n.fbm(Math.cos(theta) * 1.9 + 31.7, Math.sin(theta) * 1.9 + 11.2, 3);
+    const bays = n.get(dx * 0.0016 + 5.5, dz * 0.0016 + 9.1);
+    return this.islandR * (0.8 + 0.2 * ang) + 110 * bays;
+  }
+
+  async genBaseTerrain(progress) {
+    const nT = this.nTerrain, nR = this.nRidge, nC = this.nCoast;
+    const S = this.summit, RG = this.ridge, cap = this.maxSecondary;
+    const ridgeLen2 = (RG.x2 - RG.x1) ** 2 + (RG.z2 - RG.z1) ** 2;
+    for (let j = 0; j < GRID; j++) {
+      const z = this.cellZ(j);
+      for (let i = 0; i < GRID; i++) {
+        const x = this.cellX(i);
+        const dx = x - this.center.x, dz = z - this.center.z;
+        const rr = Math.hypot(dx, dz), theta = Math.atan2(dz, dx);
+        const coastR = this.coastRadiusAt(theta, dx, dz);
+        const inland = (coastR - rr) / coastR;
+        let h;
+        if (inland < 0) {
+          h = -2 - 43 * smoothstep(0, 0.28, -inland) + 1.5 * nT.get(x * 0.01, z * 0.01);
+        } else {
+          const cliffy = smoothstep(0.25, 0.65, nC.fbm(Math.cos(theta) * 3.1 + this.cliffPhase, Math.sin(theta) * 3.1 + 2.5, 2) * 0.5 + 0.5);
+          const beachRamp = 9 * smoothstep(0, 0.07, inland);
+          const cliffRamp = 24 * smoothstep(0, 0.012, inland) + 6 * smoothstep(0.012, 0.08, inland);
+          const coast = lerp(beachRamp, cliffRamp, cliffy);
+          const hn = nT.fbm(x * 0.0026, z * 0.0026, 5) * 0.5 + 0.5;
+          const hills = 58 * Math.pow(hn, 1.7) * smoothstep(0.03, 0.28, inland);
+          const rolling = 11 * nT.fbm(x * 0.0085 + 3, z * 0.0085 - 8, 3) * smoothstep(0.02, 0.1, inland);
+          let base = coast + hills + rolling + 8 * inland;
+          // secondary ridge
+          let t = ((x - RG.x1) * (RG.x2 - RG.x1) + (z - RG.z1) * (RG.z2 - RG.z1)) / ridgeLen2;
+          t = clamp(t, 0, 1);
+          const px = RG.x1 + (RG.x2 - RG.x1) * t, pz = RG.z1 + (RG.z2 - RG.z1) * t;
+          const dRidge = Math.hypot(x - px, z - pz);
+          if (dRidge < RG.R) {
+            const f = Math.pow(1 - dRidge / RG.R, 1.6);
+            const rh = RG.h * f * (0.72 + 0.28 * nR.ridged(x * 0.006, z * 0.006, 3));
+            base = Math.max(base, rh + base * 0.4);
+          }
+          // soft cap: nothing but the dominant mountain rises above 40% of the summit
+          if (base > cap * 0.75) base = cap * 0.75 + (cap * 0.25) * Math.tanh((base - cap * 0.75) / (cap * 0.25));
+          h = base;
+          // dominant mountain
+          const dm = Math.hypot(x - S.x, z - S.z);
+          if (dm < S.R) {
+            const u = dm / S.R;
+            let m = S.h * Math.pow(1 - u, 2.3);
+            // keep the modulation gentle: a near-convex cone is visible from its own flanks, which
+            // lets the visibility validator converge without carving trenches into the mountain
+            const am = Math.atan2(z - S.z, x - S.x);
+            const ridges = nR.fbm(Math.cos(am) * 2.6 + 50, Math.sin(am) * 2.6 + 50, 3);
+            m *= 1 + 0.05 * ridges * smoothstep(0.0, 0.3, u);
+            m += 2 * nT.get(x * 0.012 + 40, z * 0.012 + 40) * smoothstep(60, 150, dm);
+            h = Math.max(h, m + base * 0.35);
+          }
+          if (dm < S.capR) h = S.h - 0.004 * dm * dm;         // summit dome
+          else if (dm < S.capR + 40) h = Math.min(h, S.h - 0.8 - (dm - S.capR) * 0.6); // steep spire below the cap: keeps the tip distinct
+          if (h >= S.h) h = S.h - 0.1;
+        }
+        this.h[j * GRID + i] = h;
+      }
+      if ((j & 31) === 31) { progress(0.05 + 0.35 * (j / GRID), 'Raising land from the sea'); await nextTick(); }
+    }
+    this.h[this.idx(S.i, S.j)] = S.h;
+  }
+
+  // ---------------------------------------------------------- lakes
+  carveBasin(cx, cz, radius, noiseAmp, maxDepth, forcedLevel) {
+    const n = this.nCoast;
+    const ci = Math.round((cx + HALF) / CELL), cj = Math.round((cz + HALF) / CELL);
+    const rc = Math.ceil((radius * (1 + noiseAmp)) / CELL) + 3;
+    const rimR = (i, j) => {
+      const a = Math.atan2(j - cj, i - ci);
+      return radius * (1 + noiseAmp * n.fbm(Math.cos(a) * 1.5 + ci * 0.37, Math.sin(a) * 1.5 + cj * 0.37, 2));
+    };
+    let level;
+    if (forcedLevel !== undefined) level = forcedLevel;
+    else {
+      level = Infinity;
+      for (let j = cj - rc; j <= cj + rc; j++) for (let i = ci - rc; i <= ci + rc; i++) {
+        if (!this.inGrid(i, j)) continue;
+        const d = Math.hypot((i - ci) * CELL, (j - cj) * CELL), r = rimR(i, j);
+        if (d >= r && d < r + CELL * 1.6) level = Math.min(level, this.h[this.idx(i, j)]);
+      }
+      level -= 0.5;
+    }
+    if (!(level > SEA_LEVEL + 1.5)) return null;
+    const cells = [];
+    for (let j = cj - rc; j <= cj + rc; j++) for (let i = ci - rc; i <= ci + rc; i++) {
+      if (!this.inGrid(i, j)) continue;
+      const d = Math.hypot((i - ci) * CELL, (j - cj) * CELL), r = rimR(i, j);
+      if (d < r) {
+        const k = this.idx(i, j);
+        const depth = 0.4 + maxDepth * Math.pow(1 - d / r, 0.75);
+        const nh = level - depth;
+        if (this.h[k] > nh) this.h[k] = nh;
+        if (this.water[k] < level) this.water[k] = level;
+        cells.push(k);
+      }
+    }
+    return { x: cx, z: cz, radius, level, cells: cells.length };
+  }
+
+  genLakes() {
+    const r = this.rng, S = this.summit;
+    const want = r.int(3, 6);
+    const lakes = [];
+    for (let tries = 0; tries < 600 && lakes.length < want; tries++) {
+      const i = r.int(20, GRID - 21), j = r.int(20, GRID - 21);
+      const k = this.idx(i, j), h = this.h[k];
+      if (h < 5 || h > 75) continue;
+      const x = this.cellX(i), z = this.cellZ(j);
+      if (Math.hypot(x - S.x, z - S.z) < S.R * 0.95) continue;
+      // local slope using neighbours
+      const sx = (this.h[k + 1] - this.h[k - 1]) / (2 * CELL), sz = (this.h[k + GRID] - this.h[k - GRID]) / (2 * CELL);
+      if (Math.hypot(sx, sz) > 0.1) continue;
+      // away from coast: check ring
+      let ok = true;
+      for (let a = 0; a < 8 && ok; a++) {
+        const px = x + Math.cos(a * TAU / 8) * 110, pz = z + Math.sin(a * TAU / 8) * 110;
+        if (this.coarseHeightAt(px, pz) < 2) ok = false;
+      }
+      if (!ok) continue;
+      for (const L of lakes) if (Math.hypot(L.x - x, L.z - z) < 220) { ok = false; break; }
+      if (!ok) continue;
+      const lake = this.carveBasin(x, z, r.range(28, 70), 0.3, r.range(3, 7));
+      if (lake) { lake.name = 'lake'; lakes.push(lake); }
+    }
+    this.lakes = lakes;
+  }
+
+  // ---------------------------------------------------------- rivers
+  genRivers() {
+    const r = this.rng, S = this.summit;
+    const springs = [];
+    const want = r.int(5, 8);
+    for (let tries = 0; tries < 800 && springs.length < want; tries++) {
+      const i = r.int(6, GRID - 7), j = r.int(6, GRID - 7);
+      const k = this.idx(i, j), h = this.h[k];
+      const x = this.cellX(i), z = this.cellZ(j);
+      const dm = Math.hypot(x - S.x, z - S.z);
+      const onMountain = dm < S.R * 0.85 && dm > 60 && h > 70 && h < 235;
+      const onHills = dm >= S.R * 0.85 && h > 40 && h < 125;
+      if (!onMountain && !onHills) continue;
+      let ok = true;
+      for (const s of springs) if (Math.hypot(s.x - x, s.z - z) < 150) { ok = false; break; }
+      if (!ok) continue;
+      springs.push({ i, j, x, z });
+    }
+    const rivers = [];
+    for (const sp of springs) {
+      const path = this.traceRiver(sp.i, sp.j);
+      if (path && path.cells.length > 14) rivers.push(path);
+    }
+    for (const rv of rivers) this.carveRiver(rv);
+    this.rivers = rivers;
+  }
+
+  traceRiver(i0, j0) {
+    const cells = [];
+    const visited = new Set();
+    let i = i0, j = j0;
+    let pdi = 0, pdj = 0;
+    for (let step = 0; step < 700; step++) {
+      const k = this.idx(i, j);
+      if (visited.has(k)) break;
+      visited.add(k);
+      cells.push(k);
+      const h = this.h[k];
+      if (h < SEA_LEVEL + 0.5) return { cells, end: 'sea' };
+      if (this.water[k] > NO_WATER && step > 0) return { cells, end: 'lake' };
+      // choose lowest neighbour with slight momentum and deterministic jitter
+      let best = -1, bestV = Infinity, bi = 0, bj = 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue;
+        const ni = i + di, nj = j + dj;
+        if (ni < 1 || nj < 1 || ni >= GRID - 1 || nj >= GRID - 1) continue;
+        const nk = this.idx(ni, nj);
+        if (visited.has(nk)) continue;
+        const dist = (di && dj) ? 1.414 : 1;
+        const momentum = (di * pdi + dj * pdj) * 0.35;
+        const v = (this.h[nk] - h) / dist - momentum + (hash2(this.seedInt, ni, nj) - 0.5) * 0.25;
+        if (v < bestV) { bestV = v; best = nk; bi = di; bj = dj; }
+      }
+      if (best < 0 || this.h[best] > h + 0.6) {
+        // stuck in a pit: form a pond and stop
+        if (cells.length > 14) {
+          const pond = this.carveBasin(this.cellX(i), this.cellZ(j), 12 + Math.min(18, cells.length * 0.04), 0.25, 2.5, h + 0.6);
+          if (pond) { pond.name = 'pond'; this.lakes.push(pond); }
+        }
+        return { cells, end: 'pond' };
+      }
+      pdi = bi; pdj = bj;
+      i += bi; j += bj;
+    }
+    return { cells, end: 'long' };
+  }
+
+  carveRiver(rv) {
+    const cells = rv.cells, n = cells.length;
+    let wl = Infinity;
+    rv.levels = new Float32Array(n);
+    for (let k = 0; k < n; k++) {
+      const c = cells[k], i = c % GRID, j = (c / GRID) | 0;
+      const grow = Math.min(1, k / 220);
+      const w = 0.55 + grow * 0.9;           // half-width in cells
+      const depth = 1.1 + grow * 1.6;
+      const here = this.h[c];
+      let target = here - 0.35;
+      if (this.water[c] > NO_WATER) target = Math.min(target, this.water[c]); // flowing into a lake
+      wl = Math.min(wl, target);
+      rv.levels[k] = wl;
+      const rr = Math.ceil(w + 1.6);
+      for (let dj = -rr; dj <= rr; dj++) for (let di = -rr; di <= rr; di++) {
+        const ii = i + di, jj = j + dj;
+        if (!this.inGrid(ii, jj)) continue;
+        const d = Math.hypot(di, dj), kk = this.idx(ii, jj);
+        if (d <= w) {
+          const nh = wl - depth * (1 - 0.5 * (d / w) * (d / w));
+          if (this.h[kk] > nh) this.h[kk] = nh;
+          if (this.water[kk] < wl) this.water[kk] = wl;
+          this.riverMask[kk] = 1;
+        } else if (d <= w + 2.6) {
+          if (d <= w + 1.6) {
+            const bank = wl + 0.9 + (d - w) * 1.8;
+            if (this.h[kk] > bank) this.h[kk] = bank;
+          }
+          // floor: keep the water surface from hanging above adjacent dry ground (no "water walls"
+          // when a river descends a steep slope) — important for the summit visibility guarantee
+          const floor = wl - 1.2 - (d - w) * 2.2;
+          if (this.h[kk] < floor && this.water[kk] <= NO_WATER) this.h[kk] = floor;
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------- derived data
+  computeGradients() {
+    const h = this.h, gx = this.gx, gz = this.gz;
+    for (let j = 0; j < GRID; j++) for (let i = 0; i < GRID; i++) {
+      const k = j * GRID + i;
+      const l = i > 0 ? h[k - 1] : h[k], r = i < GRID - 1 ? h[k + 1] : h[k];
+      const u = j > 0 ? h[k - GRID] : h[k], d = j < GRID - 1 ? h[k + GRID] : h[k];
+      gx[k] = (r - l) / (2 * CELL); gz[k] = (d - u) / (2 * CELL);
+    }
+  }
+  bfsDistance(out, isSource) {
+    out.fill(65535);
+    const q = new Int32Array(GRID * GRID);
+    let head = 0, tail = 0;
+    for (let k = 0; k < GRID * GRID; k++) if (isSource(k)) { out[k] = 0; q[tail++] = k; }
+    while (head < tail) {
+      const k = q[head++], i = k % GRID, j = (k / GRID) | 0, d = out[k] + 1;
+      if (i > 0 && out[k - 1] > d) { out[k - 1] = d; q[tail++] = k - 1; }
+      if (i < GRID - 1 && out[k + 1] > d) { out[k + 1] = d; q[tail++] = k + 1; }
+      if (j > 0 && out[k - GRID] > d) { out[k - GRID] = d; q[tail++] = k - GRID; }
+      if (j < GRID - 1 && out[k + GRID] > d) { out[k + GRID] = d; q[tail++] = k + GRID; }
+    }
+  }
+  computeDistances() {
+    this.bfsDistance(this.coastDist, (k) => this.h[k] < SEA_LEVEL && this.water[k] <= NO_WATER);
+    this.bfsDistance(this.waterDist, (k) => this.h[k] < SEA_LEVEL || this.water[k] > this.h[k]);
+  }
+
+  classifyBiomes(finalPass) {
+    const S = this.summit, nM = this.nMoist, nE = this.nMeadow;
+    let counts = new Int32Array(16);
+    for (let j = 0; j < GRID; j++) for (let i = 0; i < GRID; i++) {
+      const k = j * GRID + i, h = this.h[k], x = this.cellX(i), z = this.cellZ(j);
+      const slope = Math.hypot(this.gx[k], this.gz[k]);
+      const wd = this.waterDist[k], cd = this.coastDist[k];
+      const dm = Math.hypot(x - S.x, z - S.z);
+      let m = nM.fbm(x * 0.0031, z * 0.0031, 4) * 0.9 + 0.35 * Math.exp(-wd / 7) - Math.max(0, h - 60) / 260;
+      this.moist[k] = m;
+      let b;
+      if (this.water[k] > h) b = this.riverMask[k] ? BIOME.RIVER : BIOME.LAKE;
+      else if (h < SEA_LEVEL) b = h > -7 ? BIOME.SHALLOW : BIOME.OCEAN;
+      else if (dm < S.capR + 6) b = BIOME.SUMMIT;
+      else if (h > S.h * 0.76) b = BIOME.SNOW;
+      else if (cd <= 7 && slope > 0.62) b = BIOME.CLIFF;
+      else if (cd <= 8 && h < 3.2 && slope < 0.3) b = BIOME.BEACH;
+      else if (h > 150 || slope > 1.05) b = BIOME.ROCK;
+      else if (slope > 0.55) b = BIOME.HILLS;
+      else if (h < 4.5 && wd <= 4 && m > 0.2 && slope < 0.12) b = BIOME.MARSH;
+      else if (m > 0.42) b = BIOME.DENSE_FOREST;
+      else if (m > 0.1) b = BIOME.FOREST;
+      else if (nE.fbm(x * 0.004 + 9, z * 0.004 + 4, 3) > 0.22 && slope < 0.3) b = BIOME.MEADOW;
+      else b = BIOME.GRASS;
+      if (finalPass && this.road[k] > 140 && b >= BIOME.GRASS && b !== BIOME.LAKE && b !== BIOME.RIVER) b = BIOME.PATH;
+      this.biome[k] = b;
+      counts[b]++;
+    }
+    this.stats.biomeCounts = Array.from(counts);
+  }
+
+  // ---------------------------------------------------------- landmarks
+  findSite(pred, tries = 500) {
+    const r = this.rng;
+    for (let t = 0; t < tries; t++) {
+      const i = r.int(8, GRID - 9), j = r.int(8, GRID - 9), k = this.idx(i, j);
+      if (pred(k, i, j)) return { i, j, x: this.cellX(i), z: this.cellZ(j), k };
+    }
+    return null;
+  }
+  farFromLandmarks(x, z, d) {
+    for (const L of this.landmarks) if (Math.hypot(L.x - x, L.z - z) < d) return false;
+    return true;
+  }
+  genLandmarks() {
+    const r = this.rng, S = this.summit;
+    const flatLand = (k, i, j, maxH, maxSlope) => {
+      const h = this.h[k];
+      return h > 3 && h < maxH && this.water[k] <= NO_WATER && Math.hypot(this.gx[k], this.gz[k]) < maxSlope
+        && this.waterDist[k] > 4 && this.coastDist[k] > 5;
+    };
+    const nRuins = r.int(2, 3), nVehicles = r.int(1, 2), nStones = r.int(1, 2);
+    for (let n = 0; n < nRuins; n++) {
+      const s = this.findSite((k, i, j) => flatLand(k, i, j, 95, 0.16) && this.farFromLandmarks(this.cellX(i), this.cellZ(j), 260));
+      if (s) this.landmarks.push({ type: 'ruin', x: s.x, z: s.z, rot: r.range(0, TAU), size: r.range(9, 16), seed: r.int(0, 1e9), clear: 24, label: 'Ruins' });
+    }
+    for (let n = 0; n < nVehicles; n++) {
+      const s = this.findSite((k, i, j) => flatLand(k, i, j, 70, 0.1) && this.farFromLandmarks(this.cellX(i), this.cellZ(j), 220));
+      if (s) this.landmarks.push({ type: r.chance(0.6) ? 'bus' : 'truck', x: s.x, z: s.z, rot: r.range(0, TAU), seed: r.int(0, 1e9), clear: 10, label: 'Abandoned vehicle' });
+    }
+    for (let n = 0; n < nStones; n++) {
+      const kind = r.pick(['stones', 'arch', 'boulders']);
+      const s = this.findSite((k, i, j) => flatLand(k, i, j, 140, 0.3) && this.farFromLandmarks(this.cellX(i), this.cellZ(j), 220));
+      if (s) this.landmarks.push({ type: kind, x: s.x, z: s.z, rot: r.range(0, TAU), size: r.range(8, 14), seed: r.int(0, 1e9), clear: kind === 'arch' ? 10 : 16, label: kind === 'stones' ? 'Standing stones' : kind === 'arch' ? 'Rock arch' : 'Boulder field' });
+    }
+    // a lone cabin ruin high on the mountain flank, rarely
+    if (r.chance(0.35)) {
+      const s = this.findSite((k, i, j) => {
+        const x = this.cellX(i), z = this.cellZ(j), dm = Math.hypot(x - S.x, z - S.z);
+        return dm > 120 && dm < S.R * 0.7 && this.h[k] > 90 && this.h[k] < 190 && Math.hypot(this.gx[k], this.gz[k]) < 0.35 && this.water[k] <= NO_WATER;
+      }, 800);
+      if (s) this.landmarks.push({ type: 'ruin', x: s.x, z: s.z, rot: r.range(0, TAU), size: r.range(6, 9), seed: r.int(0, 1e9), clear: 14, label: 'Hut ruin' });
+    }
+    this.landmarks.push({ type: 'summit', x: S.x, z: S.z, clear: 0, label: 'Summit' });
+  }
+
+  // ---------------------------------------------------------- paths (A* on downsampled grid)
+  genPaths() {
+    const r = this.rng;
+    const step = 3, PG = Math.floor(GRID / step); // 133 x 133 nodes, 18 m apart
+    const nodeK = (pi, pj) => this.idx(pi * step + 1, pj * step + 1);
+    const cost = new Float32Array(PG * PG);
+    for (let pj = 0; pj < PG; pj++) for (let pi = 0; pi < PG; pi++) {
+      const k = nodeK(pi, pj), h = this.h[k];
+      const slope = Math.hypot(this.gx[k], this.gz[k]);
+      let c = 1 + slope * 14;
+      if (h < 1.5 || this.water[k] > h) c = 60;         // avoid water (fordable but costly)
+      if (slope > 0.9) c = 200;
+      cost[pj * PG + pi] = c;
+    }
+    const toNode = (x, z) => [clamp(Math.round((x + HALF) / CELL / step), 0, PG - 1), clamp(Math.round((z + HALF) / CELL / step), 0, PG - 1)];
+    const astar = (sx, sz, tx, tz) => {
+      const open = [];
+      const g = new Float32Array(PG * PG).fill(Infinity), came = new Int32Array(PG * PG).fill(-1), closed = new Uint8Array(PG * PG);
+      const start = sz * PG + sx, goal = tz * PG + tx;
+      g[start] = 0; open.push([Math.hypot(tx - sx, tz - sz), start]);
+      let iter = 0;
+      while (open.length && iter++ < 60000) {
+        let bi = 0; for (let i = 1; i < open.length; i++) if (open[i][0] < open[bi][0]) bi = i;
+        const cur = open[bi][1]; open[bi] = open[open.length - 1]; open.pop();
+        if (cur === goal) break;
+        if (closed[cur]) continue;
+        closed[cur] = 1;
+        const ci = cur % PG, cj = (cur / PG) | 0;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          if (!di && !dj) continue;
+          const ni = ci + di, nj = cj + dj;
+          if (ni < 0 || nj < 0 || ni >= PG || nj >= PG) continue;
+          const nk = nj * PG + ni;
+          if (closed[nk]) continue;
+          const ng = g[cur] + ((di && dj) ? 1.414 : 1) * cost[nk];
+          if (ng < g[nk]) { g[nk] = ng; came[nk] = cur; open.push([ng + Math.hypot(tx - ni, tz - nj), nk]); }
+        }
+      }
+      if (came[goal] < 0 && goal !== start) return null;
+      const pts = [];
+      for (let c = goal; c >= 0; c = came[c]) { pts.push([this.cellX((c % PG) * step + 1), this.cellZ(((c / PG) | 0) * step + 1)]); if (c === start) break; }
+      return pts.reverse();
+    };
+    const targets = this.landmarks.filter(L => L.type !== 'summit');
+    const paths = [];
+    for (const L of targets) {
+      if (paths.length >= 3) break;
+      // path from landmark toward a beach or another landmark
+      let dest = null;
+      const others = targets.filter(o => o !== L && Math.hypot(o.x - L.x, o.z - L.z) > 150);
+      if (others.length && r.chance(0.5)) { const o = r.pick(others); dest = [o.x, o.z]; }
+      else {
+        // nearest beach cell in a random direction
+        let best = null, bd = Infinity;
+        for (let t = 0; t < 400; t++) {
+          const i = r.int(5, GRID - 6), j = r.int(5, GRID - 6), k = this.idx(i, j);
+          if (this.biome[k] !== BIOME.BEACH) continue;
+          const d = Math.hypot(this.cellX(i) - L.x, this.cellZ(j) - L.z);
+          if (d > 150 && d < bd) { bd = d; best = [this.cellX(i), this.cellZ(j)]; }
+        }
+        dest = best;
+      }
+      if (!dest) continue;
+      const a = toNode(L.x, L.z), b = toNode(dest[0], dest[1]);
+      const pts = astar(a[0], a[1], b[0], b[1]);
+      if (pts && pts.length > 3) paths.push({ from: L.label, pts: this.smoothPolyline(pts) });
+    }
+    for (const p of paths) this.rasterizePath(p.pts);
+    this.paths = paths;
+  }
+  smoothPolyline(pts) {
+    let out = pts;
+    for (let it = 0; it < 2; it++) {
+      const n = [out[0]];
+      for (let i = 0; i < out.length - 1; i++) {
+        const a = out[i], b = out[i + 1];
+        n.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
+        n.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+      }
+      n.push(out[out.length - 1]);
+      out = n;
+    }
+    return out;
+  }
+  rasterizePath(pts) {
+    const W = 5.0;
+    for (let s = 0; s < pts.length - 1; s++) {
+      const a = pts[s], b = pts[s + 1];
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const steps = Math.max(1, Math.ceil(len / 2));
+      for (let t = 0; t <= steps; t++) {
+        const x = a[0] + (b[0] - a[0]) * t / steps, z = a[1] + (b[1] - a[1]) * t / steps;
+        const ci = Math.round((x + HALF) / CELL), cj = Math.round((z + HALF) / CELL);
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          const i = ci + di, j = cj + dj;
+          if (!this.inGrid(i, j)) continue;
+          const d = Math.hypot(this.cellX(i) - x, this.cellZ(j) - z);
+          if (d > W) continue;
+          const k = this.idx(i, j);
+          if (this.water[k] > this.h[k]) continue;
+          const v = Math.round(255 * (1 - d / W) * 1.3);
+          if (v > this.road[k]) this.road[k] = Math.min(255, v);
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------- spawn
+  pickSpawn() {
+    const r = new RNG(this.seedStr + ':spawn');
+    let best = null;
+    for (let t = 0; t < 2000; t++) {
+      const i = r.int(10, GRID - 11), j = r.int(10, GRID - 11), k = this.idx(i, j);
+      const b = this.biome[k];
+      if (b !== BIOME.BEACH && b !== BIOME.GRASS && b !== BIOME.MEADOW) continue;
+      if (this.coastDist[k] > 12) continue;
+      best = { x: this.cellX(i), z: this.cellZ(j) };
+      break;
+    }
+    if (!best) {
+      // fall back: any land cell
+      for (let k = 0; k < GRID * GRID; k++) if (this.isLandCell(k) && this.h[k] > 2) { best = { x: this.cellX(k % GRID), z: this.cellZ((k / GRID) | 0) }; break; }
+    }
+    this.spawn = best || { x: this.summit.x + 200, z: this.summit.z };
+    // face the summit
+    this.spawn.yaw = Math.atan2(this.summit.x - this.spawn.x, this.summit.z - this.spawn.z);
+  }
+}
+/* =====================================================================
+ * 25 — MOUNTAIN VISIBILITY GUARANTEE
+ * Validates, over the entire coarse grid (cell centres AND half-cell offsets), that a line of sight
+ * from a low eye point to the summit tip is not obstructed by terrain, and smoothly lowers any
+ * obstructing terrain until every tested location passes. Lowering terrain is monotone, so the
+ * process converges; the summit dome itself is never modified.
+ * ===================================================================== */
+class MountainGuarantee {
+  constructor(world) {
+    this.world = world;
+    this.S = world.summit;
+    this.report = { passes: [], verify: null, finalViolations: 0 };
+    this.stepLen = CELL * 0.5;
+    this.lowered = 0;
+    this.obs = new Float32Array(GRID * GRID);     // cached obstruction field: max(terrain, inland water)
+    this.testCells = null;
+    this._viewer = { k: new Int32Array(4), w: new Float64Array(4), i: 0, j: 0 };
+    this._smp = { k: new Int32Array(4), w: new Float64Array(4), i: 0, j: 0 };
+    this._eff = new Float64Array(4);
+  }
+
+  // Obstruction value at a node: terrain, or the highest inland water in the 3x3 neighbourhood.
+  // The one-node water smear keeps this at least as conservative as the continuous water surface
+  // the game samples at runtime (whose quad support reaches one node out).
+  obsVal(k) {
+    const w = this.world, wt = w.water;
+    let v = w.h[k];
+    const i = k % GRID, j = (k / GRID) | 0;
+    const i0 = i > 0 ? -1 : 0, i1 = i < GRID - 1 ? 1 : 0;
+    const j0 = j > 0 ? -1 : 0, j1 = j < GRID - 1 ? 1 : 0;
+    for (let dj = j0; dj <= j1; dj++) for (let di = i0; di <= i1; di++) {
+      const iw = wt[k + dj * GRID + di];
+      if (iw > SEA_LEVEL && iw > v) v = iw;
+    }
+    return v;
+  }
+  buildObs() {
+    for (let k = 0; k < this.obs.length; k++) this.obs[k] = this.obsVal(k);
+  }
+  refreshObs(k) {
+    // water changes affect neighbours' obs too
+    const i = k % GRID, j = (k / GRID) | 0;
+    const i0 = i > 0 ? -1 : 0, i1 = i < GRID - 1 ? 1 : 0;
+    const j0 = j > 0 ? -1 : 0, j1 = j < GRID - 1 ? 1 : 0;
+    for (let dj = j0; dj <= j1; dj++) for (let di = i0; di <= i1; di++) {
+      const kk = k + dj * GRID + di;
+      this.obs[kk] = this.obsVal(kk);
+    }
+  }
+
+  // does this grid cell count as a place the player may stand/swim (land, inland water, or shore shallows)?
+  isTestCell(k) {
+    const w = this.world;
+    if (w.h[k] >= SEA_LEVEL - 0.5) return true;
+    if (w.water[k] > NO_WATER) return true;
+    // water near the shore (wading / swimming off beaches and under coastal cliffs)
+    const i = k % GRID, j = (k / GRID) | 0;
+    if (w.h[k] > -6.5 && i > 0 && j > 0 && i < GRID - 1 && j < GRID - 1) {
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if (w.h[(j + dj) * GRID + i + di] >= SEA_LEVEL - 0.5) return true;
+      }
+    }
+    return false;
+  }
+
+  // Protective floor: fixes may not dig pits into the mountain's upper flanks. Without this, a fix
+  // for one viewer can sink another viewer below the point where the (unlowerable) summit cap area
+  // still clears their sightline. The floor is a fraction of the pure summit cone and NEVER obstructs:
+  // any chord to the cap rim from at/above the floor stays above the floor cone further in.
+  floorAt(x, z) {
+    // Pits are prevented inside the near-field exemption radius instead (see checkRay); a terrain
+    // floor was tried here but a raised floor can itself obstruct chords from mid-distance viewers.
+    return -Infinity;
+  }
+
+  // Bilinear support of a world point: 4 node indices + weights (nodes outside the grid get weight 0).
+  support(x, z, out) {
+    const fx = (x + HALF) / CELL, fz = (z + HALF) / CELL;
+    const i = Math.floor(fx), j = Math.floor(fz), tx = fx - i, tz = fz - j;
+    out.k[0] = j * GRID + i; out.w[0] = (1 - tx) * (1 - tz);
+    out.k[1] = j * GRID + i + 1; out.w[1] = tx * (1 - tz);
+    out.k[2] = (j + 1) * GRID + i; out.w[2] = (1 - tx) * tz;
+    out.k[3] = (j + 1) * GRID + i + 1; out.w[3] = tx * tz;
+    out.i = i; out.j = j;
+  }
+
+  // Lower terrain so that the bilinear height at sample `smp` drops by `delta` RELATIVE to the LOS ray,
+  // taking into account that lowering a node that also supports the viewer lowers the ray by (1-t)*v_c.
+  // Only nodes with a net positive effect are lowered (sum of positive parts >= t > 0, so this always works).
+  lowerSample(smp, viewer, t, delta) {
+    const h = this.world.h, S = this.S, w = this.world;
+    let denom = 0;
+    const eff = this._eff;
+    for (let c = 0; c < 4; c++) {
+      let v = 0;
+      for (let d = 0; d < 4; d++) if (viewer.k[d] === smp.k[c]) v = viewer.w[d];
+      const e = smp.w[c] - (1 - t) * v;
+      eff[c] = e > 1e-6 ? e : 0;
+      denom += eff[c];
+    }
+    if (denom < 1e-6) return;
+    const D = Math.min(delta / denom, 5); // cap per-fix lowering; iteration handles the rest
+    for (let c = 0; c < 4; c++) {
+      if (!eff[c]) continue;
+      const k = smp.k[c];
+      const i = k % GRID, j = (k / GRID) | 0;
+      const nx = w.cellX(i), nz = w.cellZ(j);
+      if (Math.hypot(nx - S.x, nz - S.z) < S.capR + CELL) continue;
+      const fl = this.floorAt(nx, nz);
+      const nh = Math.max(h[k] - D, fl);
+      if (nh < h[k]) { this.lowered += h[k] - nh; h[k] = nh; }
+      if (w.water[k] > NO_WATER && w.water[k] > nh) w.water[k] = Math.max(nh, w.water[k] - D);
+      this.refreshObs(k);
+    }
+    // smoothing halo: gently lower surrounding nodes that are not part of the viewer's support
+    const halo = Math.min(D, 6);
+    for (let j = smp.j - 2; j <= smp.j + 3; j++) {
+      if (j < 0 || j >= GRID) continue;
+      for (let i = smp.i - 2; i <= smp.i + 3; i++) {
+        if (i < 0 || i >= GRID) continue;
+        const k = j * GRID + i;
+        let skip = false;
+        for (let c = 0; c < 4; c++) if (smp.k[c] === k || viewer.k[c] === k) skip = true;
+        if (skip) continue;
+        const d = Math.hypot(i - smp.i - 0.5, j - smp.j - 0.5);
+        if (d > 3.2) continue;
+        const nx = w.cellX(i), nz = w.cellZ(j);
+        if (Math.hypot(nx - S.x, nz - S.z) < S.capR + CELL) continue;
+        const wgt = 0.5 * (1 - smoothstep(0.7, 3.2, d));
+        const fl = this.floorAt(nx, nz);
+        const nh2 = Math.max(h[k] - halo * wgt, fl);
+        if (nh2 < h[k]) { this.lowered += h[k] - nh2; h[k] = nh2; }
+        if (w.water[k] > NO_WATER && w.water[k] > nh2) w.water[k] = Math.max(nh2, w.water[k] - halo * wgt);
+        this.refreshObs(k);
+      }
+    }
+  }
+
+  // Hard escalation: clamp the obstruction sample's support nodes straight down to the LOS limit.
+  // Bilinear height <= max of support nodes, so the sample is guaranteed clear afterwards. Monotone.
+  clampSample(smp, nh, viewer) {
+    const w = this.world, h = w.h, S = this.S;
+    for (let c = 0; c < 4; c++) {
+      const k = smp.k[c];
+      // never undermine the viewer's own support — that feedback loop digs craters
+      if (viewer && (viewer.k[0] === k || viewer.k[1] === k || viewer.k[2] === k || viewer.k[3] === k)) continue;
+      const i = k % GRID, j = (k / GRID) | 0;
+      if (i < 0 || j < 0 || i >= GRID || j >= GRID) continue;
+      const nx = w.cellX(i), nz = w.cellZ(j);
+      if (Math.hypot(nx - S.x, nz - S.z) < S.capR + CELL) continue;
+      const cl = Math.max(nh, this.floorAt(nx, nz));
+      if (h[k] > cl) { this.lowered += h[k] - cl; h[k] = cl; }
+      if (w.water[k] > cl) w.water[k] = cl;
+      this.refreshObs(k);
+    }
+  }
+
+  // Cast the LOS ray from viewer (vx, vz) towards the summit cap (the top 0.8 m of the mountain,
+  // radius capR). Two zones with criteria matched to their uncertainty:
+  //  - NEAR (d < 9 m, 0.75 m steps): ray from base+1.5 (just under the real 1.65 m eye) with a small
+  //    0.5 m margin. Catches short steep risers right in front of the viewer. Surface-detail noise is
+  //    spatially correlated (~8 m features), so viewer and obstruction detail nearly cancel here.
+  //  - FAR (d >= 9 m, stepLen steps): ray from base+eye (a LOW conservative eye) with `margin`
+  //    clearance, ramping from 1.2 m at 9 m to the full margin at 30 m.
+  // Returns true if visible. If fix is set, obstructions are lowered as found and the ray continues.
+  checkRay(vx, vz, eye, margin, fix, hard) {
+    const w = this.world, S = this.S;
+    const ground = w.coarseHeightAt(vx, vz);
+    const wl = w.waterLevelAt(vx, vz);
+    const base = wl > ground ? wl : ground;
+    const dx = S.x - vx, dz = S.z - vz;
+    const dist = Math.hypot(dx, dz);
+    // Near-field exemption: within ~12 cells of the tip the viewer stands on the summit spire itself,
+    // whose profile is slope-constrained toward the cap, so the tip is directly overhead and visible.
+    if (dist <= S.capR + 12 * CELL) return true;
+    const usable = dist - S.capR - CELL;      // sampled span along the ray (m)
+    if (usable <= 0.8) return true;
+    const rimSpan = dist - S.capR;            // distance at which the ray meets the cap rim
+    const ty = S.h - 0.8;                     // cap rim height
+    // Steep-chord exemption: when the sightline to the cap rim is steeper than the spire's bounded
+    // profile slope (0.6), the summit's own upper face fills the view above the viewer — the mountain
+    // top IS what they see (terrain outside the spire zone is validated/clamped separately and the
+    // spire bound keeps that face within ~25 m of the tip).
+    // (constant 1.8 m eye offset: strictly tighter than the real 1.65 m eye and identical across fix
+    // and verify passes, so fix passes never exempt a ray that verification would still test)
+    if ((ty - (base + 1.8)) / rimSpan > 0.52) return true;
+    let ok = true;
+    const viewer = this._viewer, smp = this._smp;
+    if (fix) this.support(vx, vz, viewer);
+    const invDist = 1 / dist;
+    const vyN = base + 1.5, slopeN = (ty - vyN) / rimSpan;   // near ray
+    const vyF = base + eye, slopeF = (ty - vyF) / rimSpan;   // far ray
+    const obs = this.obs;
+    const stepX = dx * invDist, stepZ = dz * invDist;
+    let d = 0.75;
+    while (d < usable) {
+      const px = vx + stepX * d, pz = vz + stepZ * d;
+      // inline bilinear over the cached obstruction field (max of terrain and inland water at nodes;
+      // bilinear of the max is >= the true obstruction, i.e. conservative)
+      const fx = (px + HALF) / CELL, fz = (pz + HALF) / CELL;
+      const i0 = fx | 0, j0 = fz | 0;
+      let th;
+      if (i0 < 0 || j0 < 0 || i0 >= GRID - 1 || j0 >= GRID - 1) th = DEEP_OCEAN;
+      else {
+        const tx = fx - i0, tz = fz - j0, kk = j0 * GRID + i0;
+        const a = obs[kk], b = obs[kk + 1], c2 = obs[kk + GRID], d2 = obs[kk + GRID + 1];
+        th = (a + (b - a) * tx) * (1 - tz) + (c2 + (d2 - c2) * tx) * tz;
+      }
+      let limit;
+      if (d < 9) limit = vyN + slopeN * d - 0.5;
+      else limit = vyF + slopeF * d - (d < 30 ? 1.2 + (margin - 1.2) * (d - 9) / 21 : margin);
+      if (th > limit) {
+        if (!fix) return false;
+        ok = false;
+        this.support(px, pz, smp);
+        if (hard) this.clampSample(smp, limit - 0.45, viewer);
+        else this.lowerSample(smp, viewer, d / rimSpan, th - limit + 0.15);
+      }
+      if (d < 9) d += 0.75;
+      else {
+        // adaptive step: terrain rises at most ~3.5 m per metre (cone slope <= ~2.4 plus noise), so a
+        // large clearance lets the ray skip ahead safely
+        const gap = limit - th;
+        let st = this.stepLen;
+        if (gap > 14) { st = gap * 0.27; if (st > 30) st = 30; }
+        d += st;
+      }
+    }
+    return ok;
+  }
+
+  // One full pass over the grid with the given sub-cell offsets.
+  pass(offsets, eye, margin, fix, hard) {
+    const w = this.world;
+    let tested = 0, violations = 0;
+    for (let j = 0; j < GRID; j++) for (let i = 0; i < GRID; i++) {
+      const k = j * GRID + i;
+      if (this.testCells ? !this.testCells[k] : !this.isTestCell(k)) continue;
+      const x = w.cellX(i), z = w.cellZ(j);
+      for (const o of offsets) {
+        tested++;
+        if (!this.checkRay(x + o[0] * CELL, z + o[1] * CELL, eye, margin, fix, hard)) violations++;
+      }
+    }
+    return { tested, violations };
+  }
+
+  // A cell is "risky" when its quad has a tall internal riser or touches inland water: these are the
+  // places where sub-lattice viewer positions can hide behind sub-cell steps.
+  riskyCell(k) {
+    const w = this.world, i = k % GRID, j = (k / GRID) | 0;
+    if (i >= GRID - 1 || j >= GRID - 1) return false;
+    const h = w.h;
+    const a = h[k], b = h[k + 1], c = h[k + GRID], d = h[k + GRID + 1];
+    let lo = a, hi = a;
+    if (b < lo) lo = b; if (b > hi) hi = b;
+    if (c < lo) lo = c; if (c > hi) hi = c;
+    if (d < lo) lo = d; if (d > hi) hi = d;
+    if (hi - lo > 2.2) return true;
+    const wt = w.water;
+    return wt[k] > NO_WATER || wt[k + 1] > NO_WATER || wt[k + GRID] > NO_WATER || wt[k + GRID + 1] > NO_WATER;
+  }
+
+  // Pass over risky cells only, at quarter-cell offsets.
+  passRisky(offsets, eye, margin, fix, hard) {
+    const w = this.world;
+    let tested = 0, violations = 0;
+    for (let j = 0; j < GRID; j++) for (let i = 0; i < GRID; i++) {
+      const k = j * GRID + i;
+      if ((this.testCells ? !this.testCells[k] : !this.isTestCell(k)) || !this.riskyCell(k)) continue;
+      const x = w.cellX(i), z = w.cellZ(j);
+      for (const o of offsets) {
+        tested++;
+        if (!this.checkRay(x + o[0] * CELL, z + o[1] * CELL, eye, margin, fix, hard)) violations++;
+      }
+    }
+    return { tested, violations };
+  }
+
+  async run(progress) {
+    // Strategy: soft passes smooth obstructions gently; if stragglers remain, hard passes clamp the
+    // remaining obstructions straight down to the sightline (monotone, so the process terminates).
+    // Margins: fixes use a LOW eye (0.7 m) and larger clearances than the final verification (0.8 m eye,
+    // 1.2 m clearance). The real player eye is ~1.65 m and surface detail is bounded (±0.8 m), so a
+    // passing world keeps the summit visible in the detailed heightfield.
+    this.buildObs();
+    this.testCells = new Uint8Array(GRID * GRID);
+    for (let k = 0; k < this.testCells.length; k++) this.testCells[k] = this.isTestCell(k) ? 1 : 0;
+    const centre = [[0, 0]];
+    const fine = [[0, 0], [0.5, 0], [0, 0.5], [0.5, 0.5]];
+    const quarter = [];
+    for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) quarter.push([a * 0.25, b * 0.25]);
+    let res;
+    const phase = async (name, offsets, risky, margin, softMax, base, span) => {
+      for (let p = 0; p < softMax + 10; p++) {
+        progress(base + span * Math.min(1, p / softMax), `${name} (pass ${p + 1})`);
+        await nextTick();
+        const hard = p >= softMax;
+        res = risky ? this.passRisky(offsets, 0.7, margin, true, hard) : this.pass(offsets, 0.7, margin, true, hard);
+        this.report.passes.push({ phase: name + (hard ? '!' : ''), ...res });
+        if (res.violations === 0) break;
+      }
+    };
+    let verify = null;
+    for (let round = 0; round < 10; round++) {
+      const soft = round === 0;
+      // late rounds escalate: hard clamps at a margin just above the verification bar
+      const mWide = round < 6 ? 2.4 : 1.45, mRisky = round < 6 ? 1.7 : 1.45;
+      const softMax = soft ? 12 : (round < 6 ? 2 : 0);
+      await phase('Opening sightlines', centre, false, mWide, softMax, 0.02, 0.3);
+      await phase('Refining sightlines between samples', fine, false, mWide, soft ? 8 : softMax, 0.34, 0.3);
+      await phase('Clearing river banks and ledges', quarter, true, mRisky, soft ? 6 : softMax, 0.66, 0.24);
+      progress(0.93, 'Verifying summit visibility');
+      await nextTick();
+      verify = this.pass(fine, 0.8, 1.2, false);
+      const verifyRisky = this.passRisky(quarter, 0.8, 1.2, false);
+      verify.tested += verifyRisky.tested; verify.violations += verifyRisky.violations;
+      this.report.passes.push({ phase: 'verify', ...verify });
+      if (verify.violations === 0) break;
+    }
+    this.report.verify = verify;
+    this.report.finalViolations = verify.violations;
+    this.report.loweredTotal = this.lowered;
+    // Dominance check: highest terrain outside the mountain's own flanks.
+    let second = -Infinity;
+    const w = this.world, S = this.S;
+    for (let k = 0; k < GRID * GRID; k++) {
+      const i = k % GRID, j = (k / GRID) | 0;
+      if (Math.hypot(w.cellX(i) - S.x, w.cellZ(j) - S.z) > S.R * 0.55 && w.h[k] > second) second = w.h[k];
+    }
+    this.report.highestOutsideMountain = second;
+    this.world.stats.visibility = this.report;
+    progress(1, 'Summit visible from every tested location');
+  }
+
+  // Runtime check using the full detailed heightfield (used by tests / debug). Returns true if the
+  // summit cap is visible from an eye `eyeH` above ground/water at (vx, vz).
+  visibleFromDetailed(vx, vz, eyeH = 1.65, step = 1.5) {
+    const w = this.world, S = this.S;
+    const g = w.heightAt(vx, vz), wl = w.waterLevelAt(vx, vz);
+    const vy = Math.max(g, wl) + eyeH;
+    const dx = S.x - vx, dz = S.z - vz, dist = Math.hypot(dx, dz);
+    if (dist <= S.capR + 12 * CELL) return true;
+    const usable = dist - S.capR - CELL;
+    if (usable <= 0.8) return true;
+    const rimSpan = dist - S.capR, ty = S.h - 0.8;
+    if ((ty - vy) / rimSpan > 0.52) return true;
+    const invDist = 1 / dist, slope = (ty - vy) / rimSpan;
+    let d = 0.5;
+    while (d < usable) {
+      const px = vx + dx * d * invDist, pz = vz + dz * d * invDist;
+      let th = w.heightAt(px, pz);
+      const iw = w.waterLevelAt(px, pz);
+      if (iw > SEA_LEVEL && iw > th) th = iw;
+      if (th > vy + slope * d) return false;
+      d += (d < 9) ? 0.5 : step;
+    }
+    return true;
+  }
+}
+/* =====================================================================
+ * 30 — CHUNKS (deterministic local scenery)
+ * The island's detailed props (trees, bushes, rocks, flowers, logs…) are generated per 48 m chunk
+ * from a hash of (seed, chunk coords) when the player approaches, cached in an LRU map, and are
+ * identical every time a chunk is regenerated.
+ * ===================================================================== */
+const CHUNK = 48;                 // metres per chunk side
+const CHUNK_CACHE_MAX = 360;
+
+const OBJ = { CONIFER: 0, TREE: 1, BUSH: 2, ROCK: 3, FLOWER: 4, LOG: 5, REED: 6, STUMP: 7, DEADTREE: 8 };
+
+class ChunkManager {
+  constructor(world) {
+    this.world = world;
+    this.cache = new Map();   // key -> { objects: [...] }
+    this.seedInt = world.seedInt;
+  }
+  key(ci, cj) { return ci * 4096 + cj; }
+
+  get(ci, cj) {
+    const k = this.key(ci, cj);
+    let c = this.cache.get(k);
+    if (c) { this.cache.delete(k); this.cache.set(k, c); return c; } // LRU bump
+    c = this.generate(ci, cj);
+    this.cache.set(k, c);
+    if (this.cache.size > CHUNK_CACHE_MAX) {
+      const first = this.cache.keys().next().value;
+      this.cache.delete(first);
+    }
+    return c;
+  }
+
+  // density of each object type per biome, per chunk (expected counts)
+  generate(ci, cj) {
+    const w = this.world;
+    const x0 = ci * CHUNK, z0 = cj * CHUNK;
+    const objects = [];
+    const rng = new RNG(w.seedStr + ':c:' + ci + ':' + cj);
+    // quick reject: chunk fully in deep ocean
+    const midB = w.biomeAt(x0 + CHUNK / 2, z0 + CHUNK / 2);
+    let anyLand = midB !== BIOME.OCEAN;
+    if (!anyLand) {
+      for (let t = 0; t < 4 && !anyLand; t++) {
+        if (w.coarseHeightAt(x0 + (t & 1) * CHUNK, z0 + (t >> 1) * CHUNK) > -2) anyLand = true;
+      }
+      if (!anyLand) return { objects };
+    }
+    const tries = 46;
+    for (let t = 0; t < tries; t++) {
+      const x = x0 + rng.float() * CHUNK, z = z0 + rng.float() * CHUNK;
+      if (Math.abs(x) > HALF - 8 || Math.abs(z) > HALF - 8) continue;
+      const b = w.biomeAt(x, z);
+      if (b === BIOME.OCEAN || b === BIOME.SHALLOW || b === BIOME.LAKE || b === BIOME.RIVER || b === BIOME.SUMMIT) {
+        // reeds at calm water edges
+        if ((b === BIOME.LAKE || b === BIOME.RIVER || b === BIOME.MARSH) && rng.chance(0.3)) {
+          const depth = w.waterDepthAt(x, z);
+          if (depth > 0.05 && depth < 0.8) {
+            objects.push(this.makeObj(OBJ.REED, x, z, w, rng, 1));
+          }
+        }
+        continue;
+      }
+      const h = w.heightAt(x, z);
+      if (h < 0.4) continue;
+      if (w.roadAt(x, z) > 0.42) continue;                       // keep worn paths clear
+      if (!this.clearOfLandmarks(x, z)) continue;
+      const slope = w.slopeAt(x, z);
+      const moist = w.moistAt(x, z);
+      const r = rng.float();
+      let type = -1, scale = 1;
+      switch (b) {
+        case BIOME.DENSE_FOREST:
+          if (r < 0.62) type = moist > 0.5 ? (rng.chance(0.55) ? OBJ.CONIFER : OBJ.TREE) : (rng.chance(0.65) ? OBJ.TREE : OBJ.CONIFER);
+          else if (r < 0.74) type = OBJ.BUSH;
+          else if (r < 0.79) type = OBJ.LOG;
+          else if (r < 0.83) type = OBJ.STUMP;
+          else if (r < 0.86) type = OBJ.ROCK;
+          break;
+        case BIOME.FOREST:
+          if (r < 0.4) type = rng.chance(0.5) ? OBJ.TREE : OBJ.CONIFER;
+          else if (r < 0.52) type = OBJ.BUSH;
+          else if (r < 0.56) type = OBJ.LOG;
+          else if (r < 0.6) type = OBJ.FLOWER;
+          else if (r < 0.63) type = OBJ.ROCK;
+          break;
+        case BIOME.MEADOW:
+          if (r < 0.34) type = OBJ.FLOWER;
+          else if (r < 0.42) type = OBJ.BUSH;
+          else if (r < 0.46) type = rng.chance(0.7) ? OBJ.TREE : OBJ.CONIFER;
+          break;
+        case BIOME.GRASS:
+          if (r < 0.1) type = OBJ.BUSH;
+          else if (r < 0.16) type = OBJ.FLOWER;
+          else if (r < 0.2) type = rng.chance(0.6) ? OBJ.TREE : OBJ.CONIFER;
+          else if (r < 0.23) type = OBJ.ROCK;
+          break;
+        case BIOME.MARSH:
+          if (r < 0.3) type = OBJ.REED;
+          else if (r < 0.4) type = OBJ.BUSH;
+          else if (r < 0.46) type = OBJ.DEADTREE;
+          break;
+        case BIOME.HILLS:
+          if (r < 0.18) type = OBJ.ROCK;
+          else if (r < 0.3) type = rng.chance(0.6) ? OBJ.CONIFER : OBJ.BUSH;
+          break;
+        case BIOME.ROCK:
+          if (r < 0.2) type = OBJ.ROCK;
+          else if (r < 0.26 && h < 190) type = OBJ.DEADTREE;
+          break;
+        case BIOME.CLIFF:
+          if (r < 0.16) type = OBJ.ROCK;
+          else if (r < 0.2) type = OBJ.BUSH;
+          break;
+        case BIOME.BEACH:
+          if (r < 0.06) type = OBJ.ROCK;
+          else if (r < 0.1) type = OBJ.LOG;   // driftwood
+          break;
+        case BIOME.SNOW:
+          if (r < 0.1) type = OBJ.ROCK;
+          break;
+        default: break;
+      }
+      if (type < 0) continue;
+      if ((type === OBJ.CONIFER || type === OBJ.TREE) && (slope > 0.85 || h > 165)) {
+        if (rng.chance(0.7)) continue;
+        type = OBJ.DEADTREE;
+      }
+      if (type === OBJ.FLOWER && slope > 0.5) continue;
+      objects.push(this.makeObj(type, x, z, w, rng, scale));
+    }
+    return { objects };
+  }
+
+  makeObj(type, x, z, w, rng, scale) {
+    const y = w.heightAt(x, z);
+    let height, radius;
+    switch (type) {
+      case OBJ.CONIFER: height = rng.range(7, 14) * scale; radius = 0.5; break;
+      case OBJ.TREE: height = rng.range(5.5, 10) * scale; radius = 0.5; break;
+      case OBJ.DEADTREE: height = rng.range(4, 7); radius = 0.4; break;
+      case OBJ.BUSH: height = rng.range(1.1, 2.1); radius = 0.9; break;
+      case OBJ.ROCK: height = rng.range(0.7, 2.4); radius = height * 0.8; break;
+      case OBJ.FLOWER: height = rng.range(0.4, 0.75); radius = 0; break;
+      case OBJ.LOG: height = rng.range(0.5, 0.9); radius = 1.6; break;
+      case OBJ.REED: height = rng.range(1.0, 1.8); radius = 0; break;
+      case OBJ.STUMP: height = rng.range(0.7, 1.3); radius = 0.5; break;
+      default: height = 1; radius = 0.4;
+    }
+    return { type, x, z, y, h: height, r: radius, v: rng.int(0, 7), sway: rng.range(0, TAU) };
+  }
+
+  clearOfLandmarks(x, z) {
+    for (const L of this.world.landmarks) {
+      if (L.clear && Math.abs(L.x - x) < L.clear && Math.abs(L.z - z) < L.clear) return false;
+    }
+    return true;
+  }
+
+  // collect solid obstacles near a point, for player collision
+  collectColliders(x, z, radius, out) {
+    out.length = 0;
+    const ci0 = Math.floor((x - radius) / CHUNK), ci1 = Math.floor((x + radius) / CHUNK);
+    const cj0 = Math.floor((z - radius) / CHUNK), cj1 = Math.floor((z + radius) / CHUNK);
+    for (let cj = cj0; cj <= cj1; cj++) for (let ci = ci0; ci <= ci1; ci++) {
+      const c = this.get(ci, cj);
+      for (const o of c.objects) {
+        if (o.r <= 0 || o.type === OBJ.LOG || o.type === OBJ.FLOWER || o.type === OBJ.REED) continue;
+        if (o.h < 1.0 && o.type === OBJ.ROCK) continue; // small rocks are walkable-over scenery
+        const dx = o.x - x, dz = o.z - z;
+        if (dx * dx + dz * dz < (radius + o.r) * (radius + o.r)) out.push(o);
+      }
+    }
+    return out;
+  }
+}
+/* =====================================================================
+ * 40 — PLAYER (movement, physics, collision, swimming)
+ * Frame-rate independent: all integration uses dt; input only sets wishes.
+ * ===================================================================== */
+const EYE_HEIGHT = 1.65;
+const SWIM_DEPTH = 1.15;      // water deeper than this -> swimming
+const MAX_STEP = 1.05;        // max instant step-up (m)
+const MAX_SLOPE = 1.75;       // gradient above which walking uphill is blocked
+
+class Player {
+  constructor(world, chunks) {
+    this.world = world;
+    this.chunks = chunks;
+    this.x = world.spawn.x; this.z = world.spawn.z;
+    this.y = world.heightAt(this.x, this.z);
+    this.yaw = world.spawn.yaw; this.pitch = 0;
+    this.vx = 0; this.vy = 0; this.vz = 0;
+    this.grounded = true; this.swimming = false; this.waterDepth = 0;
+    this.keys = { f: 0, b: 0, l: 0, r: 0, sprint: 0, jump: 0 };
+    this.bob = 0; this.bobAmp = 0;
+    this._colliders = [];
+    this.radius = 0.38;
+  }
+
+  eyeY() {
+    if (this.swimming) return this.world.waterLevelAt(this.x, this.z) + 0.55 + Math.sin(this.bob * 0.6) * 0.07;
+    return this.y + EYE_HEIGHT + Math.sin(this.bob) * 0.055 * this.bobAmp;
+  }
+
+  look(dx, dy, sens, invertY) {
+    this.yaw -= dx * 0.0022 * sens;
+    this.pitch += (invertY ? dy : -dy) * 0.0022 * sens;
+    const lim = Math.PI / 2 - 0.02;
+    this.pitch = clamp(this.pitch, -lim, lim);
+    if (this.yaw > Math.PI) this.yaw -= TAU; else if (this.yaw < -Math.PI) this.yaw += TAU;
+  }
+
+  update(dt, settings) {
+    const w = this.world;
+    const walkSpeed = settings.walk, sprintSpeed = settings.sprint;
+    // wish direction in world space (yaw: 0 => +z)
+    const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
+    let wx = 0, wz = 0;
+    const fwd = this.keys.f - this.keys.b, strafe = this.keys.r - this.keys.l;
+    if (fwd || strafe) {
+      wx = sin * fwd + cos * strafe;
+      wz = cos * fwd - sin * strafe;
+      const n = Math.hypot(wx, wz); wx /= n; wz /= n;
+    }
+    const ground = w.heightAt(this.x, this.z);
+    const wl = w.waterLevelAt(this.x, this.z);
+    this.waterDepth = Math.max(0, wl - ground);
+    const wading = this.waterDepth > 0.25 && !this.swimming;
+    this.swimming = this.waterDepth > SWIM_DEPTH;
+
+    let speed = this.keys.sprint ? sprintSpeed : walkSpeed;
+    if (this.swimming) speed = Math.min(speed, walkSpeed * 0.62);
+    else if (wading) speed *= 0.6;
+
+    // exponential approach to the wish velocity — frame-rate independent by construction:
+    // v(t+dt) = target + (v - target) * exp(-rate*dt)
+    const hasInput = (wx !== 0 || wz !== 0);
+    const rate = this.swimming ? (hasInput ? 3.2 : 2.2)
+      : this.grounded ? (hasInput ? 9 : 11)
+      : 1.1;                                  // low air control
+    const kv = 1 - Math.exp(-rate * dt);
+    this.vx += (wx * speed - this.vx) * kv;
+    this.vz += (wz * speed - this.vz) * kv;
+    const hs = Math.hypot(this.vx, this.vz);
+    if (hs > speed * 1.02) { this.vx *= speed / hs; this.vz *= speed / hs; }
+
+    if (this.swimming) {
+      // bob gently at the surface; Space paddles up a little, used for climbing ashore
+      this.vy = lerp(this.vy, this.keys.jump ? 1.3 : 0, 1 - Math.exp(-4 * dt));
+      this.y = wl - SWIM_DEPTH * 0.55;
+      this.grounded = false;
+    } else {
+      if (this.grounded && this.keys.jump) { this.vy = 5.6; this.grounded = false; }
+      if (!this.grounded) this.vy -= 15.5 * dt;
+    }
+
+    // integrate with collision, axis-separated
+    this.moveAxis(this.vx * dt, 0);
+    this.moveAxis(0, this.vz * dt);
+
+    // vertical / ground following
+    const g2 = w.heightAt(this.x, this.z);
+    if (this.swimming) {
+      const wl2 = w.waterLevelAt(this.x, this.z);
+      this.y = wl2 - SWIM_DEPTH * 0.55 + Math.min(0.4, this.vy * 0.15);
+      if (g2 > this.y) { this.y = g2; this.swimming = false; this.grounded = true; this.vy = 0; }
+    } else if (this.grounded) {
+      this.y = g2;
+      this.vy = 0;
+    } else {
+      this.y += this.vy * dt;
+      if (this.y <= g2) { this.y = g2; this.vy = 0; this.grounded = true; }
+    }
+
+    // view bob
+    const moving = hs > 0.4 && (this.grounded || this.swimming);
+    this.bobAmp = lerp(this.bobAmp, moving ? Math.min(1.6, hs / walkSpeed) : 0, 1 - Math.exp(-8 * dt));
+    if (moving) this.bob += dt * (4.5 + hs * 0.55);
+  }
+
+  // attempt to move along one axis with terrain-step and obstacle rules
+  moveAxis(dx, dz) {
+    if (!dx && !dz) return;
+    const w = this.world;
+    let nx = this.x + dx, nz = this.z + dz;
+    // world boundary: soft wall far out at sea
+    const lim = HALF - 24;
+    nx = clamp(nx, -lim, lim); nz = clamp(nz, -lim, lim);
+    // terrain step / slope rules (only when not swimming)
+    if (!this.swimming) {
+      const hHere = this.y;
+      const hThere = w.heightAt(nx, nz);
+      const wlThere = w.waterLevelAt(nx, nz);
+      const rise = hThere - hHere;
+      if (rise > MAX_STEP && wlThere < hThere) {
+        // try sliding: keep the other axis
+        const g = w.gradAt(nx, nz);
+        const slope = Math.hypot(g[0], g[1]);
+        if (slope > MAX_SLOPE || rise > 2.2) return;  // too steep: blocked
+        if (rise > MAX_STEP) return;
+      }
+      if (this.grounded && rise < -7) {
+        // walking off a tall cliff: allow, becomes a fall
+        this.grounded = false;
+        this.vy = Math.min(this.vy, 0);
+      }
+    }
+    // object collision (circle push-out)
+    const cols = this.chunks.collectColliders(nx, nz, this.radius + 2.2, this._colliders);
+    for (const o of cols) {
+      // ignore obstacles far below or above
+      if (o.y > this.y + 2.2 || o.y + o.h < this.y + 0.3) continue;
+      const ddx = nx - o.x, ddz = nz - o.z;
+      const d2 = ddx * ddx + ddz * ddz, rr = this.radius + o.r;
+      if (d2 < rr * rr && d2 > 1e-9) {
+        const d = Math.sqrt(d2), push = (rr - d);
+        nx += (ddx / d) * push; nz += (ddz / d) * push;
+      }
+    }
+    // landmark solid parts
+    const game = typeof GAME !== 'undefined' ? GAME : null;
+    if (game && game.landmarkColliders) {
+      for (const c of game.landmarkColliders) {
+        const ddx = nx - c.x, ddz = nz - c.z;
+        const d2 = ddx * ddx + ddz * ddz, rr = this.radius + c.r;
+        if (d2 < rr * rr && d2 > 1e-9 && this.y < c.y + c.h && this.y + 1.6 > c.y) {
+          const d = Math.sqrt(d2), push = (rr - d);
+          nx += (ddx / d) * push; nz += (ddz / d) * push;
+        }
+      }
+    }
+    this.x = clamp(nx, -lim, lim);
+    this.z = clamp(nz, -lim, lim);
+  }
+}
+/* =====================================================================
+ * 50 — FIRST-PERSON ASCII RENDERER
+ * A perspective terrain ray-marcher on a logical character grid. Every column marches a ray across
+ * the heightfield (near → far, growing steps) and projects terrain into screen rows using a
+ * classic y-buffer; objects are ASCII billboards depth-tested per cell against the terrain.
+ * Terrain is ALWAYS marched to the full world extent, so the dominant mountain is never culled by
+ * the object render-distance setting.
+ * ===================================================================== */
+const TERRAIN_MAX_DIST = 2800;   // full island diagonal — the summit is always within this
+
+// --- glyph sets -------------------------------------------------------
+const GLYPHS = {
+  grass: ['.', ',', "'", '"', '`'],
+  meadow: ['.', ',', '*', "'", '"'],
+  sand: ['.', ',', ':', '.'],
+  rock: ['#', '^', ':', '='],
+  cliff: ['#', '/', '\\', '^'],
+  snow: ['.', '*', ' ', "'"],
+  mountain: ['^', '/', '\\', '#'],
+  waterCalm: ['~', '-', '~', '='],
+  waterWave: ['~', '≈', '~', '-'],
+  marsh: [',', ';', '"', '~'],
+  path: ['.', ':', '.', '='],
+  forestFloor: ['.', ',', ';', "'"],
+};
+// base colors (day, neutral light)
+const COLORS = {
+  grass: rgb(96, 142, 70), grassDry: rgb(128, 146, 74), meadow: rgb(110, 152, 80),
+  sand: rgb(196, 178, 128), rock: rgb(128, 124, 116), cliff: rgb(118, 110, 100),
+  snow: rgb(228, 232, 238), water: rgb(38, 88, 128), waterDeep: rgb(18, 52, 96),
+  river: rgb(52, 104, 136), marsh: rgb(86, 118, 72), path: rgb(150, 132, 100),
+  trunk: rgb(104, 82, 58), conifer: rgb(48, 96, 60), leaf: rgb(84, 128, 62),
+  bush: rgb(72, 112, 58), flower1: rgb(206, 180, 90), flower2: rgb(198, 120, 150),
+  flower3: rgb(220, 220, 230), log: rgb(112, 90, 64), reed: rgb(120, 140, 80),
+  dead: rgb(120, 108, 92), ruin: rgb(142, 136, 126), rust: rgb(142, 92, 62),
+  rust2: rgb(110, 102, 96), stone: rgb(136, 132, 124),
+};
+
+// ASCII art patterns: [tiers...] each tier = { rows: ['..'], anchor: fraction of height }
+// '#' style chars are mapped to colors via the type's palette function.
+const PATTERNS = (() => {
+  const conifer = [
+    ['^', '|'],
+    ['^', 'A', '|'],
+    [' ^ ', '/|\\', '/|\\', ' | '],
+    ['  ^  ', ' /^\\ ', '/ | \\', '/\\|/\\', '  |  '],
+    ['   ^   ', '  /^\\  ', ' / | \\ ', '/\\ | /\\', ' /\\|/\\ ', '/  |  \\', '   |   '],
+  ];
+  const tree = [
+    ['Y'],
+    ['@', '|'],
+    ['(@)', ' | '],
+    [' @@@ ', '@@@@@', ' \\|/ ', '  |  '],
+    ['  @@@  ', ' @@@@@ ', '@@@@@@@', ' @@|@@ ', '  \\|/  ', '   |   '],
+  ];
+  const dead = [['t'], ['Y', '|'], [' \\/', ' | ', ' | ']];
+  const bush = [['*'], ['**'], ['***', '***'], [' *** ', '*****', ' *** ']];
+  const rock = [[':'], ['^'], ['/\\', '##'], [' ## ', '####']];
+  const flower = [['*']];
+  const reed = [['|'], ['|/', '||']];
+  const log = [['='], ['=='], ['====']];
+  const stump = [['n'], ['[]']];
+  return { conifer, tree, dead, bush, rock, flower, reed, log, stump };
+})();
+
+class Renderer {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.cols = 0; this.rows = 0; this.cellW = 8; this.cellH = 15;
+    this.ch = null; this.fg = null; this.depth = null;
+    this.atlas = null; this.atlasMap = new Map(); this.atlasCursor = 0;
+    this.fontPx = 14;
+    this._objList = [];
+    this.frame = 0;
+  }
+
+  configure(settings) {
+    const w = this.canvas.width, h = this.canvas.height;
+    const cols = settings.density | 0;
+    this.cols = cols;
+    this.cellW = w / cols;
+    this.cellH = this.cellW * 1.95;
+    this.rows = Math.max(10, Math.ceil(h / this.cellH));
+    const n = this.cols * this.rows;
+    this.ch = new Uint16Array(n);
+    this.fg = new Int32Array(n);
+    this.depth = new Float32Array(n);
+    this.fontPx = Math.max(4, Math.floor(this.cellH * 0.94));
+    this.atlasMap.clear(); this.atlasCursor = 0;
+    this.atlas = null;
+    this.stepQ = { low: 0.052, medium: 0.036, high: 0.026, ultra: 0.018 }[settings.quality] || 0.026;
+    this.nearStep = { low: 0.8, medium: 0.6, high: 0.45, ultra: 0.35 }[settings.quality] || 0.45;
+  }
+
+  // ------------------------------------------------------------ main frame
+  render(game) {
+    const { world, player, settings, atmosphere: atm } = game;
+    const cols = this.cols, rows = this.rows;
+    if (!cols) return;
+    this.frame++;
+    const ch = this.ch, fg = this.fg, depth = this.depth;
+    const time = game.timeSec;
+    const skyCol = atm.skyColor, horizonCol = atm.horizonColor, lightRGB = atm.lightRGB, light = atm.light;
+    const fogDist = atm.fogDistance;        // atmosphere/weather haze distance
+    const fogCol = atm.fogColor;
+    ch.fill(32); depth.fill(Infinity);
+
+    const eyeY = player.eyeY();
+    const yaw = player.yaw, pitch = player.pitch;
+    const sinY = Math.sin(yaw), cosY = Math.cos(yaw);
+    const fovRad = settings.fov * Math.PI / 180;
+    const focalCells = (cols / 2) / Math.tan(fovRad / 2);
+    const focalRows = focalCells * (this.cellW / this.cellH);
+    const horizon = rows / 2 + Math.tan(pitch) * focalRows;
+    const w = world;
+    const sway = atm.windPhase;
+
+    // --- sky ---------------------------------------------------------
+    for (let r = 0; r < rows; r++) {
+      const tSky = clamp(r / (horizon + 0.001), 0, 1);
+      const base = mixColor(skyCol, horizonCol, tSky * tSky);
+      const rowOff = r * cols;
+      for (let c = 0; c < cols; c++) { fg[rowOff + c] = base; }
+    }
+    this.drawCelestials(game, horizon, focalCells, focalRows);
+    if (atm.starAlpha > 0.03) this.drawStars(game, horizon, focalCells, focalRows);
+    if (atm.cloudCover > 0.05) this.drawClouds(game, horizon, focalCells, focalRows);
+
+    // --- terrain march per column -------------------------------------
+    const nearStep = this.nearStep, stepQ = this.stepQ;
+    for (let c = 0; c < cols; c++) {
+      const lat = (c + 0.5 - cols / 2) / focalCells;      // tan of lateral angle
+      const dirX = sinY + cosY * lat, dirZ = cosY - sinY * lat;
+      // note: unnormalized (planar projection) — depth t is distance along view plane normal
+      let minRow = rows;             // y-buffer: lowest empty row (from bottom up)
+      let t = 0.6;
+      let prevSurf = -Infinity;
+      while (t < TERRAIN_MAX_DIST && minRow > 0) {
+        const px = player.x + dirX * t, pz = player.z + dirZ * t;
+        let h;
+        if (t < 140) h = w.heightAt(px, pz);
+        else h = w.coarseHeightAt(px, pz);
+        const wl = w.waterLevelAt(px, pz);
+        const isWater = wl > h;
+        const surfY = isWater ? wl : h;
+        if (surfY > prevSurf - 40) { // skip projection when deep under previous silhouette? (cheap guard)
+          const row = horizon + ((eyeY - surfY) / t) * focalRows;
+          let rTop = Math.ceil(row);
+          if (rTop < 0) rTop = 0;
+          if (rTop < minRow) {
+            // fill rows rTop .. minRow-1
+            const fogF = 1 - Math.exp(-t / fogDist);
+            for (let r = minRow - 1; r >= rTop; r--) {
+              const idx = r * cols + c;
+              const g = this.surfaceCell(w, px, pz, h, wl, isWater, t, time, sway, atm);
+              ch[idx] = g.c;
+              let col = lightColor(g.col, lightRGB, light * g.shade);
+              col = mixColor(col, fogCol, fogF * 0.92);
+              fg[idx] = col;
+              depth[idx] = t;
+            }
+            minRow = rTop;
+          }
+        }
+        prevSurf = surfY;
+        t += Math.max(nearStep, t * stepQ);
+      }
+      // horizon haze line where sky meets unfilled terrain
+    }
+
+    // --- objects -------------------------------------------------------
+    this.renderObjects(game, horizon, focalCells, focalRows, sinY, cosY, eyeY);
+
+    // --- weather overlays ----------------------------------------------
+    if (settings.weatherfx !== 'off') this.weatherOverlay(game);
+
+    // --- blit to canvas --------------------------------------------------
+    this.blit(atm);
+  }
+
+  // choose glyph + color for a terrain surface sample
+  surfaceCell(w, x, z, h, wl, isWater, dist, time, sway, atm) {
+    const hsh = hash2(w.seedInt, (x * 2.3) | 0, (z * 2.3) | 0);
+    if (isWater) {
+      const deep = clamp((wl - h) / 9, 0, 1);
+      const windy = atm.windSpeed > 5 || wl <= SEA_LEVEL + 0.01;
+      const set = windy ? GLYPHS.waterWave : GLYPHS.waterCalm;
+      const phase = fract(hsh * 7 + time * (windy ? 1.6 : 0.8) + x * 0.07 + z * 0.05);
+      const g = set[(phase * set.length) | 0];
+      let col = mixColor(COLORS.water, COLORS.waterDeep, deep);
+      if (wl > SEA_LEVEL + 0.01) col = COLORS.river;
+      const sparkle = hsh > 0.93 && ((time * 2 + hsh * 20) % 2) < 0.4 ? 1.55 : 1;
+      return { c: g.charCodeAt(0), col, shade: (0.82 + 0.3 * hsh) * sparkle };
+    }
+    const b = w.biomeAt(x, z);
+    const slope = dist < 400 ? w.slopeAt(x, z) : 0.3;
+    const road = dist < 220 ? w.roadAt(x, z) : 0;
+    let set, col;
+    if (road > 0.45) { set = GLYPHS.path; col = COLORS.path; }
+    else switch (b) {
+      case BIOME.BEACH: set = GLYPHS.sand; col = COLORS.sand; break;
+      case BIOME.CLIFF: set = GLYPHS.cliff; col = COLORS.cliff; break;
+      case BIOME.SNOW: case BIOME.SUMMIT: set = GLYPHS.snow; col = COLORS.snow; break;
+      case BIOME.ROCK: set = h > 200 ? GLYPHS.mountain : GLYPHS.rock; col = COLORS.rock; break;
+      case BIOME.HILLS: set = slope > 0.8 ? GLYPHS.rock : GLYPHS.grass; col = slope > 0.8 ? COLORS.rock : COLORS.grassDry; break;
+      case BIOME.MEADOW: set = GLYPHS.meadow; col = COLORS.meadow; break;
+      case BIOME.MARSH: set = GLYPHS.marsh; col = COLORS.marsh; break;
+      case BIOME.DENSE_FOREST: set = GLYPHS.forestFloor; col = scaleColor(COLORS.grass, 0.8); break;
+      case BIOME.FOREST: set = GLYPHS.forestFloor; col = COLORS.grass; break;
+      default: set = GLYPHS.grass; col = COLORS.grass; break;
+    }
+    // meadow flowers tint sprinkle
+    if (b === BIOME.MEADOW && hsh > 0.86) {
+      col = hsh > 0.95 ? COLORS.flower2 : COLORS.flower1;
+    }
+    // high-altitude blending toward rock/snow on the mountain
+    if (h > 150 && b !== BIOME.SNOW && b !== BIOME.SUMMIT) {
+      const f = smoothstep(150, 260, h);
+      col = mixColor(col, COLORS.rock, f);
+      if (f > 0.5) set = GLYPHS.mountain;
+      const sf = smoothstep(255, 300, h);
+      if (sf > 0) col = mixColor(col, COLORS.snow, sf);
+    }
+    let gi = (hsh * set.length) | 0;
+    // subtle wind shimmer on grass near the player
+    if (dist < 60 && (b === BIOME.GRASS || b === BIOME.MEADOW) && ((sway + hsh * 6.3) % 6) < 0.5 && hsh > 0.5) gi = (gi + 1) % set.length;
+    // slope shading: faces toward light slightly brighter
+    const g = w.gradAt(x, z);
+    const shade = clamp(0.95 - g[0] * 0.28 - g[1] * 0.1 + hsh * 0.18, 0.45, 1.3);
+    return { c: set[gi].charCodeAt(0), col, shade };
+  }
+
+  // ------------------------------------------------------------ objects
+  renderObjects(game, horizon, focalCells, focalRows, sinY, cosY, eyeY) {
+    const { world, player, chunks, settings, atmosphere: atm } = game;
+    const cols = this.cols, rows = this.rows;
+    const rd = settings.renderdist;
+    const list = this._objList; list.length = 0;
+    const ci0 = Math.floor((player.x - rd) / CHUNK), ci1 = Math.floor((player.x + rd) / CHUNK);
+    const cj0 = Math.floor((player.z - rd) / CHUNK), cj1 = Math.floor((player.z + rd) / CHUNK);
+    const rd2 = rd * rd;
+    for (let cj = cj0; cj <= cj1; cj++) for (let ci = ci0; ci <= ci1; ci++) {
+      // chunk centre cull
+      const ccx = (ci + 0.5) * CHUNK - player.x, ccz = (cj + 0.5) * CHUNK - player.z;
+      if (ccx * ccx + ccz * ccz > (rd + CHUNK) * (rd + CHUNK)) continue;
+      // frustum-ish cull: chunk behind the camera
+      const fwd = ccx * sinY + ccz * cosY;
+      if (fwd < -CHUNK * 1.5) continue;
+      const chk = chunks.get(ci, cj);
+      for (const o of chk.objects) {
+        const dx = o.x - player.x, dz = o.z - player.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 > rd2) continue;
+        const cz = dx * sinY + dz * cosY;          // forward
+        if (cz < 0.4) continue;
+        const cx = dx * cosY - dz * sinY;          // right
+        if (Math.abs(cx) > cz * (cols / 2 / focalCells) + 6) continue;
+        list.push({ o, cz, cx, d2 });
+      }
+    }
+    // landmark pieces
+    for (const piece of game.landmarkPieces) {
+      const dx = piece.x - player.x, dz = piece.z - player.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > rd2 * 2.2) continue;
+      const cz = dx * sinY + dz * cosY;
+      if (cz < 0.4) continue;
+      const cx = dx * cosY - dz * sinY;
+      list.push({ o: piece, cz, cx, d2 });
+    }
+    // transient life (birds, butterflies, swaying extras)
+    for (const o of game.transients) {
+      const dx = o.x - player.x, dz = o.z - player.z;
+      const d2 = dx * dx + dz * dz;
+      const cz = dx * sinY + dz * cosY;
+      if (cz < 0.4) continue;
+      const cx = dx * cosY - dz * sinY;
+      list.push({ o, cz, cx, d2 });
+    }
+    list.sort((a, b) => b.d2 - a.d2);  // far first
+    for (const e of list) this.drawObject(game, e, horizon, focalCells, focalRows, eyeY);
+  }
+
+  patternFor(o, hRows) {
+    let tiers;
+    switch (o.type) {
+      case OBJ.CONIFER: tiers = PATTERNS.conifer; break;
+      case OBJ.TREE: tiers = PATTERNS.tree; break;
+      case OBJ.DEADTREE: tiers = PATTERNS.dead; break;
+      case OBJ.BUSH: tiers = PATTERNS.bush; break;
+      case OBJ.ROCK: tiers = PATTERNS.rock; break;
+      case OBJ.FLOWER: tiers = PATTERNS.flower; break;
+      case OBJ.REED: tiers = PATTERNS.reed; break;
+      case OBJ.LOG: tiers = PATTERNS.log; break;
+      case OBJ.STUMP: tiers = PATTERNS.stump; break;
+      default: tiers = PATTERNS.rock;
+    }
+    let best = tiers[0];
+    for (const t of tiers) if (t.length <= hRows + 0.8) best = t; else break;
+    return best;
+  }
+
+  objColor(o, cch, hsh) {
+    switch (o.type) {
+      case OBJ.CONIFER: return cch === 124 /* | */ ? COLORS.trunk : scaleColor(COLORS.conifer, 0.85 + 0.3 * hsh);
+      case OBJ.TREE: return (cch === 124 || cch === 92 || cch === 47) ? COLORS.trunk : scaleColor(COLORS.leaf, 0.85 + 0.3 * hsh);
+      case OBJ.DEADTREE: return COLORS.dead;
+      case OBJ.BUSH: return scaleColor(COLORS.bush, 0.85 + 0.3 * hsh);
+      case OBJ.ROCK: return scaleColor(COLORS.rock, 0.8 + 0.35 * hsh);
+      case OBJ.FLOWER: return [COLORS.flower1, COLORS.flower2, COLORS.flower3][o.v % 3];
+      case OBJ.REED: return COLORS.reed;
+      case OBJ.LOG: return COLORS.log;
+      case OBJ.STUMP: return COLORS.trunk;
+      default: return COLORS.rock;
+    }
+  }
+
+  drawObject(game, e, horizon, focalCells, focalRows, eyeY) {
+    const o = e.o, cz = e.cz;
+    const atm = game.atmosphere;
+    const cols = this.cols, rows = this.rows;
+    const ch = this.ch, fg = this.fg, depth = this.depth;
+    const dist = Math.sqrt(e.d2);
+    const fogF = 1 - Math.exp(-dist / atm.fogDistance);
+    if (fogF > 0.93) return;
+    const col0 = Math.round(cols / 2 + (e.cx / cz) * focalCells);
+    const baseRow = horizon + ((eyeY - o.y) / cz) * focalRows;
+    const hRows = (o.h / cz) * focalRows;
+    if (baseRow < -4 || baseRow - hRows > rows + 4) return;
+
+    if (o.pattern) { // landmark piece / transient with explicit pattern
+      this.blitPattern(o.pattern, o.colors, col0, baseRow, hRows, cz, fogF, atm, o.swayAmt || 0, game);
+      return;
+    }
+    const pat = this.patternFor(o, hRows);
+    const hsh = o.v / 7;
+    // wind sway shifts upper pattern rows laterally
+    const swayCells = (game.settings.life === 'on' && (o.type === OBJ.CONIFER || o.type === OBJ.TREE || o.type === OBJ.REED))
+      ? Math.sin(atm.windPhase * 1.3 + o.sway) * atm.windSway * Math.min(2, focalRows / cz * 0.35) : 0;
+    const pr = pat.length;
+    const rBottom = Math.round(baseRow);
+    const rTop = rBottom - Math.max(1, Math.round(hRows));
+    const span = rBottom - rTop;
+    for (let r = Math.max(0, rTop); r < Math.min(rows, rBottom); r++) {
+      const fr = span > 1 ? (r - rTop) / (span - 1) : 0;
+      const prow = pat[Math.min(pr - 1, Math.round(fr * (pr - 1)))];
+      const pw = prow.length;
+      const swayHere = Math.round(swayCells * (1 - fr));
+      for (let pc = 0; pc < pw; pc++) {
+        const cch = prow.charCodeAt(pc);
+        if (cch === 32) continue;
+        const c = col0 + pc - (pw >> 1) + swayHere;
+        if (c < 0 || c >= cols) continue;
+        const idx = r * cols + c;
+        if (cz >= depth[idx]) continue;      // behind terrain silhouette
+        ch[idx] = cch;
+        let col = this.objColor(o, cch, hsh);
+        col = lightColor(col, atm.lightRGB, atm.light);
+        fg[idx] = mixColor(col, atm.fogColor, fogF * 0.92);
+        depth[idx] = cz;
+      }
+    }
+  }
+
+  blitPattern(pattern, colorFn, col0, baseRow, hRows, cz, fogF, atm, swayAmt, game) {
+    const cols = this.cols, rows = this.rows;
+    const ch = this.ch, fg = this.fg, depth = this.depth;
+    const pr = pattern.length;
+    const rBottom = Math.round(baseRow);
+    const rTop = rBottom - Math.max(1, Math.round(hRows));
+    const span = Math.max(1, rBottom - rTop);
+    for (let r = Math.max(0, rTop); r < Math.min(rows, rBottom); r++) {
+      const fr = span > 1 ? (r - rTop) / (span - 1) : 0;
+      const prow = pattern[Math.min(pr - 1, Math.round(fr * (pr - 1)))];
+      const pw = prow.length;
+      for (let pc = 0; pc < pw; pc++) {
+        const cch = prow.charCodeAt(pc);
+        if (cch === 32) continue;
+        const c = col0 + pc - (pw >> 1);
+        if (c < 0 || c >= cols) continue;
+        const idx = r * cols + c;
+        if (cz >= depth[idx]) continue;
+        ch[idx] = cch;
+        let col = colorFn(cch, fr);
+        col = lightColor(col, atm.lightRGB, atm.light);
+        fg[idx] = mixColor(col, atm.fogColor, fogF * 0.92);
+        depth[idx] = cz;
+      }
+    }
+  }
+
+  // ------------------------------------------------------------ sky details
+  drawCelestials(game, horizon, focalCells, focalRows) {
+    const atm = game.atmosphere, player = game.player;
+    const cols = this.cols, rows = this.rows, ch = this.ch, fg = this.fg;
+    for (const body of [{ az: atm.sunAz, el: atm.sunEl, glyph: 64, col: atm.sunColor, glow: true, up: atm.sunEl > -0.06 },
+                        { az: atm.moonAz, el: atm.moonEl, glyph: 79, col: rgb(200, 205, 215), glow: false, up: atm.moonEl > 0 }]) {
+      if (!body.up) continue;
+      let rel = body.az - player.yaw;
+      while (rel > Math.PI) rel -= TAU; while (rel < -Math.PI) rel += TAU;
+      if (Math.abs(rel) > 1.2) continue;
+      const c = Math.round(cols / 2 + Math.tan(-rel) * focalCells);
+      const r = Math.round(horizon - Math.tan(body.el) * focalRows);
+      if (c < -2 || c > cols + 2) continue;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -2; dc <= 2; dc++) {
+        const rr = r + dr, cc = c + dc;
+        if (rr < 0 || rr >= rows || cc < 0 || cc >= cols) continue;
+        const idx = rr * cols + cc;
+        const d = Math.abs(dr) + Math.abs(dc) * 0.55;
+        if (d < 0.6) { ch[idx] = body.glyph; fg[idx] = body.col; }
+        else if (body.glow && d < 2 && atm.cloudCover < 0.7) { fg[idx] = mixColor(fg[idx], body.col, 0.45 / d); }
+      }
+    }
+  }
+
+  drawStars(game, horizon, focalCells, focalRows) {
+    const atm = game.atmosphere, player = game.player;
+    const cols = this.cols, rows = this.rows, ch = this.ch, fg = this.fg;
+    const n = Math.floor(cols * rows * 0.012 * atm.starAlpha);
+    const starCol = scaleColor(rgb(210, 215, 235), clamp(atm.starAlpha, 0, 1));
+    for (let i = 0; i < n; i++) {
+      // fixed celestial sphere: hash by (i); azimuth/elevation
+      const az = hash2(911, i, 17) * TAU, el = hash2(913, i, 29) * 0.85 + 0.03;
+      let rel = az - player.yaw;
+      while (rel > Math.PI) rel -= TAU; while (rel < -Math.PI) rel += TAU;
+      if (Math.abs(rel) > 1.1) continue;
+      const c = Math.round(cols / 2 + Math.tan(-rel) * focalCells);
+      const r = Math.round(horizon - Math.tan(el) * focalRows);
+      if (c < 0 || c >= cols || r < 0 || r >= rows) continue;
+      const idx = r * cols + c;
+      if (ch[idx] !== 32) continue;
+      ch[idx] = hash2(917, i, 3) > 0.8 ? 43 : 46; // '+' or '.'
+      fg[idx] = starCol;
+    }
+  }
+
+  drawClouds(game, horizon, focalCells, focalRows) {
+    const atm = game.atmosphere, player = game.player;
+    const cols = this.cols, ch = this.ch, fg = this.fg;
+    const noise = atm.cloudNoise;
+    const rowsToUse = Math.max(2, Math.floor(horizon * 0.55));
+    const cover = atm.cloudCover;
+    const cloudCol = lightColor(mixColor(rgb(225, 225, 228), atm.fogColor, 0.35), atm.lightRGB, clamp(atm.light * 1.05, 0.12, 1));
+    const dark = scaleColor(cloudCol, 0.72);
+    for (let r = 0; r < rowsToUse; r++) {
+      const el = Math.atan((horizon - r) / focalRows);         // elevation of this row
+      const bandY = 1 / Math.max(0.09, Math.sin(el));          // pseudo distance on cloud plane
+      if (bandY > 14) continue;
+      const rowOff = r * cols;
+      for (let c = 0; c < cols; c++) {
+        const relAng = Math.atan((c + 0.5 - cols / 2) / focalCells);
+        const az = player.yaw - relAng;
+        const u = Math.sin(az) * bandY + atm.cloudDrift, v = Math.cos(az) * bandY + atm.cloudDrift * 0.3;
+        const nv = noise.fbm(u * 0.5, v * 0.5, 3) * 0.5 + 0.5;
+        if (nv < 1 - cover * 0.85) continue;
+        const idx = rowOff + c;
+        if (ch[idx] !== 32) continue;
+        const thick = (nv - (1 - cover * 0.85)) / (cover * 0.85 + 0.0001);
+        ch[idx] = thick > 0.55 ? 64 /*@*/ : (thick > 0.3 ? 37 /*%*/ : 126 /*~*/);
+        fg[idx] = mixColor(thick > 0.5 ? dark : cloudCol, fg[idx], 0.25);
+      }
+    }
+  }
+
+  // ------------------------------------------------------------ precipitation / fog overlay
+  weatherOverlay(game) {
+    const atm = game.atmosphere;
+    const cols = this.cols, rows = this.rows, ch = this.ch, fg = this.fg;
+    const t = game.timeSec;
+    const reduced = game.settings.weatherfx === 'reduced';
+    if (atm.rain > 0.02) {
+      const density = atm.rain * (reduced ? 0.4 : 1) * 0.16;
+      const n = Math.floor(cols * rows * density);
+      const rainCol = mixColor(rgb(150, 170, 190), atm.fogColor, 0.3);
+      const slant = atm.windSpeed > 9;
+      const gl = slant ? 47 : 124; // '/' or '|'
+      for (let i = 0; i < n; i++) {
+        const seedRow = (hash2(1733, i, (t * 14 + i) | 0) * rows) | 0;
+        const seedCol = (hash2(1741, i, (t * 9) | 0 + i) * cols) | 0;
+        const idx = seedRow * cols + seedCol;
+        if (idx >= 0 && idx < ch.length) { ch[idx] = gl; fg[idx] = rainCol; }
+      }
+    }
+    if (atm.groundFog > 0.03 && !reduced) {
+      const n = Math.floor(cols * rows * atm.groundFog * 0.05);
+      const fogGl = [126, 45, 59]; // ~ - ;
+      for (let i = 0; i < n; i++) {
+        const r = rows - 1 - ((hash2(1747, i, (t * 0.7 + i * 3) | 0) * rows * 0.4) | 0);
+        const c = ((hash2(1753, i, (t * 0.5) | 0) + Math.sin(t * 0.22 + i) * 0.08 + 1) % 1 * cols) | 0;
+        if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
+        const idx = r * cols + c;
+        ch[idx] = fogGl[i % 3];
+        fg[idx] = mixColor(fg[idx], atm.fogColor, 0.75);
+      }
+    }
+    if (atm.lightningFlash > 0.01) {
+      // brighten the whole frame briefly
+      const f = atm.lightningFlash;
+      for (let i = 0; i < fg.length; i++) fg[i] = mixColor(fg[i], rgb(235, 238, 255), f * 0.5);
+    }
+  }
+
+  // ------------------------------------------------------------ atlas blit
+  ensureAtlas() {
+    if (this.atlas) return;
+    const doc = this.canvas.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    this.atlas = doc.createElement('canvas');
+    this.tileW = Math.max(2, Math.ceil(this.cellW));
+    this.tileH = Math.max(4, Math.ceil(this.cellH));
+    this.atlasCols = 64;
+    this.atlasRows = 64;
+    this.atlas.width = this.atlasCols * this.tileW;
+    this.atlas.height = this.atlasRows * this.tileH;
+    this.atlasCtx = this.atlas.getContext('2d');
+    this.atlasCtx.font = this.fontPx + 'px Consolas, Menlo, "DejaVu Sans Mono", monospace';
+    this.atlasCtx.textBaseline = 'top';
+    this.atlasCtx.textAlign = 'left';
+  }
+
+  tileFor(cch, col) {
+    // quantize color to 15-bit
+    const q = ((col >> 9) & 0x7c00) | ((col >> 6) & 0x3e0) | ((col >> 3) & 0x1f);
+    const key = (cch << 15) | q;
+    let t = this.atlasMap.get(key);
+    if (t !== undefined) return t;
+    if (this.atlasCursor >= this.atlasCols * this.atlasRows) { // atlas full: reset (rare)
+      this.atlasMap.clear(); this.atlasCursor = 0;
+      this.atlasCtx.clearRect(0, 0, this.atlas.width, this.atlas.height);
+    }
+    t = this.atlasCursor++;
+    const ax = (t % this.atlasCols) * this.tileW, ay = ((t / this.atlasCols) | 0) * this.tileH;
+    const r = (q >> 10 & 31) << 3, g = (q >> 5 & 31) << 3, b = (q & 31) << 3;
+    this.atlasCtx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+    this.atlasCtx.fillText(String.fromCharCode(cch), ax, ay + (this.tileH - this.fontPx) * 0.3);
+    this.atlasMap.set(key, t);
+    return t;
+  }
+
+  blit(atm) {
+    const ctx = this.ctx, cols = this.cols, rows = this.rows;
+    const ch = this.ch, fg = this.fg;
+    this.ensureAtlas();
+    // background: very dark version of fog/sky
+    ctx.fillStyle = cssColor(scaleColor(atm.skyColor, 0.14));
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    const tw = this.tileW, th = this.tileH;
+    const cw = this.cellW, chh = this.cellH;
+    const atlas = this.atlas, acols = this.atlasCols;
+    for (let r = 0; r < rows; r++) {
+      const rowOff = r * cols;
+      const y = r * chh;
+      for (let c = 0; c < cols; c++) {
+        const cch = ch[rowOff + c];
+        if (cch === 32) continue;
+        const t = this.tileFor(cch, fg[rowOff + c]);
+        const ax = (t % acols) * tw, ay = ((t / acols) | 0) * th;
+        ctx.drawImage(atlas, ax, ay, tw, th, c * cw, y, tw, th);
+      }
+    }
+  }
+}
+/* =====================================================================
+ * 60 — FULL ISLAND MAP (M)
+ * The complete island is visible from the start. The static layer (terrain, water, landmarks,
+ * legend) is rendered once per world into an offscreen canvas; the dynamic layer (player marker,
+ * coordinates) is drawn on top every frame while the map is open.
+ * ===================================================================== */
+class IslandMap {
+  constructor(canvas, world) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.world = world;
+    this.base = null;
+    this.scale = 1; this.ox = 0; this.oy = 0;
+  }
+
+  biomeColor(b) {
+    switch (b) {
+      case BIOME.OCEAN: return '#10243e';
+      case BIOME.SHALLOW: return '#1b3a57';
+      case BIOME.BEACH: return '#c0b080';
+      case BIOME.CLIFF: return '#6f6a62';
+      case BIOME.GRASS: return '#4e7a3a';
+      case BIOME.MEADOW: return '#6f9a4a';
+      case BIOME.FOREST: return '#35602f';
+      case BIOME.DENSE_FOREST: return '#27491f';
+      case BIOME.HILLS: return '#7a7f55';
+      case BIOME.ROCK: return '#8a8680';
+      case BIOME.SNOW: return '#e6e9ee';
+      case BIOME.LAKE: return '#2b5d86';
+      case BIOME.RIVER: return '#3a7096';
+      case BIOME.PATH: return '#9a8a66';
+      case BIOME.MARSH: return '#4a6b46';
+      case BIOME.SUMMIT: return '#ffffff';
+      default: return '#333';
+    }
+  }
+
+  buildBase() {
+    const doc = this.canvas.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    const W = this.canvas.width, H = this.canvas.height;
+    const base = doc.createElement('canvas');
+    base.width = W; base.height = H;
+    const ctx = base.getContext('2d');
+    ctx.fillStyle = '#060a08'; ctx.fillRect(0, 0, W, H);
+    // layout: map square centered-left, legend right
+    const legendW = Math.min(300, W * 0.3);
+    const size = Math.min(W - legendW - 60, H - 90);
+    const ox = 30, oy = (H - size) / 2;
+    this.scale = size / WORLD_SIZE; this.ox = ox + size / 2; this.oy = oy + size / 2;
+    const w = this.world;
+    const px = size / GRID;
+    for (let j = 0; j < GRID; j++) {
+      for (let i = 0; i < GRID; i++) {
+        const b = w.biome[j * GRID + i];
+        ctx.fillStyle = this.biomeColor(b);
+        // shade by elevation
+        ctx.fillRect(ox + i * px, oy + j * px, px + 0.6, px + 0.6);
+      }
+    }
+    // elevation shading pass (cheap hillshade)
+    ctx.globalAlpha = 0.28;
+    for (let j = 1; j < GRID; j += 2) {
+      for (let i = 1; i < GRID; i += 2) {
+        const k = j * GRID + i;
+        if (w.h[k] < 0) continue;
+        const sh = (w.h[k - 1] - w.h[k + 1]) * 0.05;
+        if (sh > 0.08) { ctx.fillStyle = '#ffffff'; ctx.fillRect(ox + i * px, oy + j * px, px * 2, px * 2); }
+        else if (sh < -0.08) { ctx.fillStyle = '#000000'; ctx.fillRect(ox + i * px, oy + j * px, px * 2, px * 2); }
+      }
+    }
+    ctx.globalAlpha = 1;
+    const font = (s) => s + 'px Consolas, Menlo, "DejaVu Sans Mono", monospace';
+    // landmarks
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const L of w.landmarks) {
+      const mx = this.ox + L.x * this.scale, my = this.oy + L.z * this.scale;
+      if (L.type === 'summit') {
+        ctx.font = font(18); ctx.fillStyle = '#ffffff'; ctx.fillText('▲', mx, my);
+        ctx.font = font(11); ctx.fillStyle = '#d8dde2'; ctx.fillText('THE SUMMIT', mx, my - 14);
+      } else {
+        ctx.font = font(13); ctx.fillStyle = '#e8d8a8';
+        const g = L.type === 'ruin' ? '+' : (L.type === 'bus' || L.type === 'truck') ? '#' : L.type === 'arch' ? 'n' : 'o';
+        ctx.fillText(g, mx, my);
+      }
+    }
+    // frame + north
+    ctx.strokeStyle = '#2d3b2c'; ctx.strokeRect(ox - 1, oy - 1, size + 2, size + 2);
+    ctx.font = font(16); ctx.fillStyle = '#9fd58a'; ctx.textAlign = 'center';
+    ctx.fillText('N', ox + size / 2, oy - 16);
+    ctx.fillText('↑', ox + size / 2, oy - 30);
+    // legend
+    const lx = ox + size + 28;
+    let ly = oy + 4;
+    ctx.textAlign = 'left';
+    ctx.font = font(15); ctx.fillStyle = '#9fd58a';
+    ctx.fillText('ISLAND MAP', lx, ly); ly += 24;
+    ctx.font = font(12);
+    const entries = [
+      [BIOME.OCEAN, 'Ocean'], [BIOME.SHALLOW, 'Shallows'], [BIOME.BEACH, 'Beach'],
+      [BIOME.CLIFF, 'Cliffs'], [BIOME.GRASS, 'Grassland'], [BIOME.MEADOW, 'Meadow'],
+      [BIOME.FOREST, 'Forest'], [BIOME.DENSE_FOREST, 'Dense forest'], [BIOME.HILLS, 'Rocky hills'],
+      [BIOME.ROCK, 'Bare rock'], [BIOME.SNOW, 'Snow'], [BIOME.LAKE, 'Lake / pond'],
+      [BIOME.RIVER, 'River'], [BIOME.MARSH, 'Marsh'], [BIOME.PATH, 'Worn path'],
+    ];
+    for (const [b, name] of entries) {
+      ctx.fillStyle = this.biomeColor(b); ctx.fillRect(lx, ly - 8, 12, 10);
+      ctx.fillStyle = '#b8c4b0'; ctx.fillText(name, lx + 20, ly);
+      ly += 17;
+    }
+    ly += 6;
+    ctx.fillStyle = '#e8d8a8';
+    ctx.fillText('▲  dominant summit', lx, ly); ly += 17;
+    ctx.fillText('+  ruins      #  vehicle', lx, ly); ly += 17;
+    ctx.fillText('n  rock arch  o  stones', lx, ly); ly += 17;
+    ctx.fillStyle = '#7fb0ff'; ctx.fillText('@  you (view direction shown)', lx, ly); ly += 26;
+    ctx.fillStyle = '#7f8f78';
+    ctx.fillText('Seed: ' + w.seedStr, lx, ly); ly += 17;
+    this.coordY = ly; this.coordX = lx;
+    ly += 24;
+    ctx.fillText('M or ESC to close', lx, ly);
+    this.base = base;
+  }
+
+  draw(player) {
+    if (!this.base || this.base.width !== this.canvas.width || this.base.height !== this.canvas.height) {
+      this.base = null; this.buildBase();
+    }
+    const ctx = this.ctx;
+    ctx.drawImage(this.base, 0, 0);
+    // player marker
+    const mx = this.ox + player.x * this.scale, my = this.oy + player.z * this.scale;
+    ctx.save();
+    ctx.translate(mx, my);
+    ctx.fillStyle = '#7fb0ff';
+    ctx.font = '14px Consolas, Menlo, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('@', 0, 0);
+    // view direction
+    ctx.strokeStyle = '#7fb0ff';
+    ctx.beginPath();
+    ctx.moveTo(Math.sin(player.yaw) * 7, Math.cos(player.yaw) * 7);
+    ctx.lineTo(Math.sin(player.yaw) * 16, Math.cos(player.yaw) * 16);
+    ctx.stroke();
+    ctx.restore();
+    // live coordinates
+    ctx.fillStyle = '#7f8f78';
+    ctx.font = '12px Consolas, Menlo, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Position: ' + Math.round(player.x) + ', ' + Math.round(player.z) +
+      '   Elevation: ' + Math.max(0, player.y).toFixed(0) + ' m        ', this.coordX, this.coordY + 17);
+  }
+}
+/* =====================================================================
+ * 70 — ATMOSPHERE: day/night cycle, weather state machine, living nature, procedural audio
+ * ===================================================================== */
+class Atmosphere {
+  constructor(world) {
+    this.world = world;
+    this.rng = new RNG(world.seedStr + ':weather');
+    this.cloudNoise = new Noise2D(new RNG(world.seedStr + ':clouds'));
+    this.dayFrac = 0.32;             // start mid-morning
+    // weather state machine
+    this.states = ['clear', 'haze', 'clouds', 'fog', 'rain', 'heavy', 'storm'];
+    this.state = 'clear';
+    this.stateTime = 0;
+    this.stateDur = this.rng.range(80, 150);
+    // smooth parameters (current, target)
+    this.p = { fog: 0.06, rain: 0, cloud: 0.22, wind: 3.5 };
+    this.t = { ...this.p };
+    this.applyStateTargets();
+    Object.assign(this.p, this.t);
+    this.windPhase = 0;
+    this.cloudDrift = 0;
+    this.lightningFlash = 0;
+    this.lightningCooldown = 10;
+    this.thunderQueued = 0;
+    // outputs
+    this.light = 1; this.lightRGB = rgb(255, 255, 255);
+    this.skyColor = rgb(110, 160, 210); this.horizonColor = rgb(190, 205, 215);
+    this.fogColor = rgb(170, 185, 200); this.fogDistance = 1500;
+    this.sunAz = 0; this.sunEl = 0.5; this.moonAz = 0; this.moonEl = -0.5;
+    this.sunColor = rgb(255, 240, 180);
+    this.starAlpha = 0; this.cloudCover = 0.2; this.windSpeed = 3.5; this.windSway = 0.3;
+    this.rain = 0; this.groundFog = 0;
+  }
+
+  transitionWeights() {
+    switch (this.state) {
+      case 'clear': return { clear: 3, haze: 2, clouds: 3, fog: 0.6, rain: 0.5 };
+      case 'haze': return { clear: 3, haze: 1, clouds: 2, fog: 1.5, rain: 0.6 };
+      case 'clouds': return { clear: 2, haze: 1, clouds: 2, rain: 2.4, fog: 0.8 };
+      case 'fog': return { haze: 2, fog: 1.5, clear: 1.5, clouds: 1, rain: 0.7 };
+      case 'rain': return { clouds: 2.4, rain: 1.4, heavy: 1.2, haze: 0.8 };
+      case 'heavy': return { rain: 2.2, storm: 1.4, heavy: 0.8, clouds: 0.9 };
+      case 'storm': return { heavy: 2.5, rain: 1.6, clouds: 0.7 };
+      default: return { clear: 1 };
+    }
+  }
+  applyStateTargets() {
+    const t = this.t, r = this.rng;
+    switch (this.state) {
+      case 'clear': t.fog = r.range(0.02, 0.1); t.rain = 0; t.cloud = r.range(0.05, 0.3); t.wind = r.range(1.5, 5); break;
+      case 'haze': t.fog = r.range(0.18, 0.34); t.rain = 0; t.cloud = r.range(0.2, 0.5); t.wind = r.range(1, 4); break;
+      case 'clouds': t.fog = r.range(0.08, 0.2); t.rain = 0; t.cloud = r.range(0.55, 0.85); t.wind = r.range(3, 8); break;
+      case 'fog': t.fog = r.range(0.55, 0.9); t.rain = 0; t.cloud = r.range(0.4, 0.8); t.wind = r.range(0.5, 2.5); break;
+      case 'rain': t.fog = r.range(0.3, 0.45); t.rain = r.range(0.25, 0.5); t.cloud = r.range(0.75, 0.95); t.wind = r.range(4, 9); break;
+      case 'heavy': t.fog = r.range(0.45, 0.6); t.rain = r.range(0.65, 0.9); t.cloud = 1; t.wind = r.range(7, 13); break;
+      case 'storm': t.fog = r.range(0.5, 0.7); t.rain = 1; t.cloud = 1; t.wind = r.range(11, 17); break;
+    }
+  }
+
+  update(dt, timeSec, settings) {
+    // --- day/night ---
+    const dayLen = settings.daylen * 60;
+    this.dayFrac = (this.dayFrac + dt / dayLen) % 1;
+    const d = this.dayFrac;
+    // sun elevation: -1..1 sine; day from 0.25..0.75 roughly
+    const sunEl = Math.sin((d - 0.25) * TAU) * 1.05;
+    this.sunEl = Math.asin(clamp(sunEl, -1, 1)) * 0.9;
+    this.sunAz = (d * TAU * 1) + Math.PI;    // sweeps around
+    this.moonAz = this.sunAz + Math.PI;
+    this.moonEl = -this.sunEl * 0.8;
+
+    // weather evolution
+    if (settings.weatherfx === 'off') {
+      this.t.fog = 0.05; this.t.rain = 0; this.t.cloud = 0.15; this.t.wind = 2.5;
+    } else {
+      this.stateTime += dt;
+      if (this.stateTime > this.stateDur) {
+        this.stateTime = 0;
+        this.stateDur = this.rng.range(70, 160);
+        const w = this.transitionWeights();
+        let sum = 0; for (const k in w) sum += w[k];
+        let pick = this.rng.float() * sum;
+        for (const k in w) { pick -= w[k]; if (pick <= 0) { this.state = k; break; } }
+        this.applyStateTargets();
+      }
+    }
+    const blend = 1 - Math.exp(-dt / 14);   // slow smooth transitions
+    this.p.fog += (this.t.fog - this.p.fog) * blend;
+    this.p.rain += (this.t.rain - this.p.rain) * blend;
+    this.p.cloud += (this.t.cloud - this.p.cloud) * blend;
+    this.p.wind += (this.t.wind - this.p.wind) * blend;
+
+    this.windPhase += dt * (0.6 + this.p.wind * 0.14);
+    this.cloudDrift += dt * (0.01 + this.p.wind * 0.004);
+    this.windSpeed = this.p.wind;
+    this.windSway = clamp(this.p.wind / 11, 0.08, 1.3);
+    this.rain = this.p.rain;
+    this.cloudCover = this.p.cloud;
+    this.groundFog = this.p.fog * (this.state === 'fog' ? 1 : 0.4);
+
+    // lightning
+    this.lightningFlash = Math.max(0, this.lightningFlash - dt * 2.6);
+    if (this.state === 'storm') {
+      this.lightningCooldown -= dt;
+      if (this.lightningCooldown <= 0) {
+        this.lightningFlash = 1;
+        this.thunderQueued = this.rng.range(0.4, 2.2);  // audio delay
+        this.lightningCooldown = this.rng.range(4, 14);
+      }
+    }
+    if (this.thunderQueued > 0) {
+      this.thunderQueued -= dt;
+      if (this.thunderQueued <= 0 && typeof AUDIO !== 'undefined' && AUDIO) AUDIO.thunder();
+    }
+
+    // --- lighting from sun elevation ---
+    const sel = this.sunEl;
+    const dayness = smoothstep(-0.14, 0.12, sel);
+    const dusk = Math.exp(-Math.pow((sel - 0.02) * 7, 2));   // golden factor around sunrise/sunset
+    this.light = lerp(0.16, 1.0, dayness) * lerp(1, 0.72, this.p.cloud * 0.8) * lerp(1, 0.8, this.p.fog);
+    const dayRGB = rgb(255, 252, 244), duskRGB = rgb(255, 176, 120), nightRGB = rgb(96, 116, 170);
+    let lrgb = mixColor(nightRGB, dayRGB, dayness);
+    lrgb = mixColor(lrgb, duskRGB, dusk * 0.65);
+    this.lightRGB = lrgb;
+    this.sunColor = mixColor(rgb(255, 244, 200), rgb(255, 140, 70), dusk);
+    // sky colors
+    const skyDay = rgb(104, 156, 208), skyNight = rgb(10, 14, 30), skyDusk = rgb(190, 110, 80);
+    const horDay = rgb(185, 205, 220), horNight = rgb(20, 24, 42), horDusk = rgb(235, 160, 100);
+    let sky = mixColor(skyNight, skyDay, dayness); sky = mixColor(sky, skyDusk, dusk * 0.55);
+    let hor = mixColor(horNight, horDay, dayness); hor = mixColor(hor, horDusk, dusk * 0.75);
+    sky = mixColor(sky, scaleColor(rgb(120, 128, 140), this.light), this.p.cloud * 0.55);
+    hor = mixColor(hor, scaleColor(rgb(140, 146, 155), this.light), this.p.cloud * 0.5);
+    this.skyColor = sky; this.horizonColor = hor;
+    this.starAlpha = clamp((1 - dayness) - this.p.cloud * 0.8 - this.p.fog, 0, 1);
+    // fog
+    const clearDist = 2600;
+    this.fogDistance = lerp(clearDist, 110, Math.pow(this.p.fog, 1.35));
+    if (this.p.rain > 0.4) this.fogDistance = Math.min(this.fogDistance, lerp(900, 380, this.p.rain));
+    let fogc = mixColor(hor, scaleColor(rgb(150, 158, 168), Math.max(0.25, this.light)), 0.5);
+    this.fogColor = fogc;
+  }
+}
+
+/* ------------------------------------------------------------------ living nature */
+class Wildlife {
+  constructor(world, rng) {
+    this.world = world;
+    this.rng = new RNG(world.seedStr + ':life');
+    this.birds = [];
+    this.butterflies = [];
+  }
+  update(dt, game) {
+    const p = game.player, atm = game.atmosphere;
+    if (game.settings.life !== 'on') { this.birds.length = 0; this.butterflies.length = 0; return; }
+    const day = atm.sunEl > 0;
+    // --- birds: distant gliders, never approach the player ---
+    if (day && atm.rain < 0.3 && this.birds.length < 4 && this.rng.chance(dt * 0.08)) {
+      const a = this.rng.range(0, TAU), d = this.rng.range(90, 300);
+      this.birds.push({
+        x: p.x + Math.cos(a) * d, z: p.z + Math.sin(a) * d,
+        y: 0, alt: this.rng.range(18, 55),
+        dir: this.rng.range(0, TAU), speed: this.rng.range(6, 11),
+        life: this.rng.range(25, 60), flap: this.rng.range(0, TAU),
+      });
+    }
+    for (let i = this.birds.length - 1; i >= 0; i--) {
+      const b = this.birds[i];
+      b.life -= dt;
+      b.flap += dt * 7;
+      b.dir += Math.sin(b.flap * 0.11 + i) * dt * 0.35;
+      b.x += Math.cos(b.dir) * b.speed * dt;
+      b.z += Math.sin(b.dir) * b.speed * dt;
+      const g = Math.max(this.world.heightAt(b.x, b.z), this.world.waterLevelAt(b.x, b.z));
+      b.y = g + b.alt + Math.sin(b.flap * 0.23) * 3;
+      const dd = Math.hypot(b.x - p.x, b.z - p.z);
+      if (b.life < 0 || dd > 500) this.birds.splice(i, 1);
+      else if (dd < 30) { b.dir = Math.atan2(b.z - p.z, b.x - p.x); } // drift away, never at player
+    }
+    // --- butterflies in meadows near the player ---
+    const b0 = this.world.biomeAt(p.x, p.z);
+    if (day && atm.rain < 0.1 && this.butterflies.length < 6 &&
+        (b0 === BIOME.MEADOW || b0 === BIOME.GRASS) && this.rng.chance(dt * 0.5)) {
+      const a = this.rng.range(0, TAU), d = this.rng.range(4, 20);
+      const x = p.x + Math.cos(a) * d, z = p.z + Math.sin(a) * d;
+      if (this.world.biomeAt(x, z) === BIOME.MEADOW || this.world.biomeAt(x, z) === BIOME.GRASS) {
+        this.butterflies.push({ x, z, y: 0, ph: this.rng.range(0, TAU), life: this.rng.range(14, 30), v: this.rng.int(0, 2) });
+      }
+    }
+    for (let i = this.butterflies.length - 1; i >= 0; i--) {
+      const f = this.butterflies[i];
+      f.life -= dt; f.ph += dt * 3;
+      f.x += Math.cos(f.ph * 1.7) * dt * 1.2;
+      f.z += Math.sin(f.ph * 1.3) * dt * 1.2;
+      f.y = this.world.heightAt(f.x, f.z) + 0.9 + Math.sin(f.ph * 2.1) * 0.4;
+      if (f.life < 0 || Math.hypot(f.x - p.x, f.z - p.z) > 60) this.butterflies.splice(i, 1);
+    }
+    // publish as transient renderables
+    const tr = game.transients; tr.length = 0;
+    for (const b of this.birds) {
+      const flapUp = Math.sin(b.flap) > 0;
+      tr.push({
+        x: b.x, z: b.z, y: b.y, h: 1.2, type: -1,
+        pattern: [flapUp ? '\\v/' : '-v-'],
+        colors: () => rgb(40, 42, 48),
+      });
+    }
+    for (const f of this.butterflies) {
+      tr.push({
+        x: f.x, z: f.z, y: f.y, h: 0.5, type: -1,
+        pattern: [Math.sin(f.ph * 4) > 0 ? '}{' : ')('],
+        colors: () => [rgb(220, 190, 90), rgb(210, 140, 170), rgb(225, 225, 235)][f.v],
+      });
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ procedural audio */
+class ProceduralAudio {
+  constructor() {
+    this.ctx = null;
+    this.enabled = false;
+    this.master = null;
+    this.nodes = {};
+    this.failed = false;
+  }
+  // must be called from a user gesture
+  init() {
+    if (this.ctx || this.failed) return;
+    try {
+      const AC = typeof AudioContext !== 'undefined' ? AudioContext :
+        (typeof webkitAudioContext !== 'undefined' ? webkitAudioContext : null);
+      if (!AC) { this.failed = true; return; }
+      const ctx = new AC();
+      this.ctx = ctx;
+      this.master = ctx.createGain();
+      this.master.gain.value = 0;
+      this.master.connect(ctx.destination);
+      // shared noise buffer (2 s white noise)
+      const len = ctx.sampleRate * 2;
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; data[i] = w * 0.5 + last * 2.2; }
+      this.noiseBuf = buf;
+      const mkNoise = (freq, q, type) => {
+        const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+        const filt = ctx.createBiquadFilter(); filt.type = type || 'lowpass'; filt.frequency.value = freq; filt.Q.value = q || 0.8;
+        const gain = ctx.createGain(); gain.gain.value = 0;
+        src.connect(filt); filt.connect(gain); gain.connect(this.master);
+        src.start();
+        return { src, filt, gain };
+      };
+      this.nodes.wind = mkNoise(320, 0.6, 'lowpass');
+      this.nodes.waves = mkNoise(520, 0.7, 'lowpass');
+      this.nodes.rain = mkNoise(2400, 0.4, 'highpass');
+      this.nodes.river = mkNoise(900, 0.8, 'bandpass');
+      // slow LFO on wind for gusts
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07;
+      const lfoGain = ctx.createGain(); lfoGain.gain.value = 90;
+      lfo.connect(lfoGain); lfoGain.connect(this.nodes.wind.filt.frequency);
+      lfo.start();
+      const lfo2 = ctx.createOscillator(); lfo2.frequency.value = 0.11;
+      const lfo2Gain = ctx.createGain(); lfo2Gain.gain.value = 0.05;
+      lfo2.connect(lfo2Gain); lfo2Gain.connect(this.nodes.waves.gain.gain);
+      lfo2.start();
+      this.enabled = true;
+    } catch (e) { this.failed = true; }
+  }
+  resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {}); }
+  update(dt, game) {
+    if (!this.enabled || !this.ctx) return;
+    const s = game.settings;
+    const vol = (s.mute === 'on' ? 1 : 0) * s.volume / 100;
+    const target = game.state === 'playing' ? vol * 0.5 : vol * 0.12;
+    const g = this.master.gain;
+    g.value += (target - g.value) * Math.min(1, dt * 2);
+    if (target <= 0.001 && g.value <= 0.002) return;
+    const atm = game.atmosphere, p = game.player, w = game.world;
+    const coast = w.coastDistAt(p.x, p.z);
+    const waves = clamp(1 - coast / 160, 0, 1);
+    const wind = clamp(atm.windSpeed / 15, 0.12, 1);
+    const riverNear = w.waterDepthAt(p.x, p.z) > 0.05 && w.waterLevelAt(p.x, p.z) > SEA_LEVEL + 0.01 ? 0.5 :
+      (w.biomeAt(p.x, p.z) === BIOME.RIVER ? 0.4 : 0);
+    const k = Math.min(1, dt * 1.2);
+    this.nodes.wind.gain.gain.value += (wind * 0.5 - this.nodes.wind.gain.gain.value) * k;
+    this.nodes.waves.gain.gain.value += (waves * 0.4 - this.nodes.waves.gain.gain.value) * k;
+    this.nodes.rain.gain.gain.value += (atm.rain * 0.4 - this.nodes.rain.gain.gain.value) * k;
+    this.nodes.river.gain.gain.value += (riverNear * 0.22 - this.nodes.river.gain.gain.value) * k;
+    // occasional bird chirps in daytime clear weather
+    this.birdTimer = (this.birdTimer || 0) - dt;
+    if (this.birdTimer <= 0 && atm.sunEl > 0.05 && atm.rain < 0.15 && game.settings.life === 'on') {
+      this.birdTimer = 2 + Math.random() * 9;
+      if (Math.random() < 0.65) this.chirp();
+    }
+  }
+  chirp() {
+    const ctx = this.ctx; if (!ctx) return;
+    try {
+      const t0 = ctx.currentTime + 0.05;
+      const o = ctx.createOscillator(); o.type = 'sine';
+      const g = ctx.createGain(); g.gain.value = 0;
+      o.connect(g); g.connect(this.master);
+      const base = 2100 + Math.random() * 1600;
+      const n = 2 + (Math.random() * 3 | 0);
+      for (let i = 0; i < n; i++) {
+        const ts = t0 + i * (0.09 + Math.random() * 0.05);
+        o.frequency.setValueAtTime(base * (0.9 + Math.random() * 0.25), ts);
+        o.frequency.exponentialRampToValueAtTime(base * (1.1 + Math.random() * 0.3), ts + 0.05);
+        g.gain.setValueAtTime(0, ts);
+        g.gain.linearRampToValueAtTime(0.045, ts + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, ts + 0.07);
+      }
+      o.start(t0); o.stop(t0 + n * 0.16 + 0.1);
+    } catch (e) { /* ignore */ }
+  }
+  thunder() {
+    const ctx = this.ctx; if (!ctx || !this.enabled) return;
+    try {
+      const t0 = ctx.currentTime + 0.02;
+      const src = ctx.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
+      const filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 130; filt.Q.value = 0.5;
+      const g = ctx.createGain();
+      src.connect(filt); filt.connect(g); g.connect(this.master);
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(0.9, t0 + 0.06);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 2.6 + Math.random() * 1.5);
+      filt.frequency.setValueAtTime(190, t0);
+      filt.frequency.exponentialRampToValueAtTime(45, t0 + 2.4);
+      src.start(t0); src.stop(t0 + 4.5);
+    } catch (e) { /* ignore */ }
+  }
+}
+let AUDIO = null;
+/* =====================================================================
+ * 80 — GAME: lifecycle, menus, settings, input, main loop
+ * States: title -> loading -> playing <-> paused / map; settings overlays title or pause.
+ * ===================================================================== */
+const DEFAULT_SETTINGS = {
+  quality: 'high', density: 160, renderdist: 420, fov: 90,
+  weatherfx: 'full', life: 'on', crosshair: 'on',
+  sens: 1, walk: 4.5, sprint: 8.5, inverty: 'no',
+  mute: 'on', volume: 60, daylen: 12,
+};
+const QUALITY_PRESETS = {
+  low: { density: 110, renderdist: 220 },
+  medium: { density: 140, renderdist: 330 },
+  high: { density: 160, renderdist: 420 },
+  ultra: { density: 210, renderdist: 620 },
+};
+
+class Game {
+  constructor() {
+    this.state = 'title';          // title | loading | playing | paused | map | settings
+    this.settingsReturn = 'title';
+    this.settings = { ...DEFAULT_SETTINGS };
+    this.world = null; this.player = null; this.chunks = null;
+    this.renderer = null; this.map = null; this.atmosphere = null; this.wildlife = null;
+    this.timeSec = 0;
+    this.transients = [];
+    this.landmarkPieces = [];
+    this.landmarkColliders = [];
+    this.pointerLocked = false;
+    this._raf = null;
+    this.lastT = 0;
+  }
+
+  // ---------------------------------------------------------------- boot
+  boot() {
+    this.cv = document.getElementById('view');
+    this.cvMap = document.getElementById('mapview');
+    this.renderer = new Renderer(this.cv);
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    this.bindMenus();
+    this.bindInput();
+    AUDIO = new ProceduralAudio();
+    const loop = (t) => {
+      this._raf = requestAnimationFrame(loop);
+      let dt = (t - this.lastT) / 1000;
+      this.lastT = t;
+      if (!(dt > 0) || dt > 0.25) dt = 0.016;   // tab switch / spike protection
+      this.tick(dt);
+    };
+    this._raf = requestAnimationFrame(loop);
+  }
+
+  resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    for (const cv of [this.cv, this.cvMap]) {
+      cv.width = Math.floor(window.innerWidth * dpr);
+      cv.height = Math.floor(window.innerHeight * dpr);
+    }
+    if (this.renderer) this.renderer.configure(this.settings);
+    if (this.map) this.map.base = null;
+  }
+
+  // ---------------------------------------------------------------- menus & dom
+  el(id) { return document.getElementById(id); }
+  show(id) {
+    for (const s of ['title', 'loading', 'pause', 'settings']) this.el(s).classList.toggle('active', s === id);
+  }
+  bindMenus() {
+    const seedInput = this.el('seed');
+    seedInput.value = '';
+    this.el('btn-random').addEventListener('click', () => {
+      const words = ['driftwood', 'heather', 'basalt', 'tidepool', 'fern', 'granite', 'puffin', 'moss', 'juniper', 'cairn', 'bay', 'bracken'];
+      seedInput.value = words[(Math.random() * words.length) | 0] + '-' + ((Math.random() * 900 + 100) | 0);
+    });
+    this.el('btn-play').addEventListener('click', () => this.startGame());
+    seedInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.startGame(); });
+    this.el('btn-settings-title').addEventListener('click', () => this.openSettings('title'));
+    this.el('btn-settings-pause').addEventListener('click', () => this.openSettings('pause'));
+    this.el('btn-settings-back').addEventListener('click', () => this.closeSettings());
+    this.el('btn-settings-defaults').addEventListener('click', () => { this.settings = { ...DEFAULT_SETTINGS }; this.syncSettingsUI(); this.applySettings(); });
+    this.el('btn-resume').addEventListener('click', () => this.resume());
+    this.el('btn-title').addEventListener('click', () => this.toTitle());
+    // settings controls
+    const bind = (id, key, isNum) => {
+      const e = this.el(id);
+      e.addEventListener('input', () => {
+        this.settings[key] = isNum ? parseFloat(e.value) : e.value;
+        if (id === 's-quality') {
+          const p = QUALITY_PRESETS[e.value];
+          if (p) { this.settings.density = p.density; this.settings.renderdist = p.renderdist; this.syncSettingsUI(); }
+        }
+        this.applySettings();
+      });
+    };
+    bind('s-quality', 'quality'); bind('s-density', 'density', true); bind('s-renderdist', 'renderdist', true);
+    bind('s-fov', 'fov', true); bind('s-weatherfx', 'weatherfx'); bind('s-life', 'life'); bind('s-crosshair', 'crosshair');
+    bind('s-sens', 'sens', true); bind('s-walk', 'walk', true); bind('s-sprint', 'sprint', true); bind('s-inverty', 'inverty');
+    bind('s-mute', 'mute'); bind('s-volume', 'volume', true); bind('s-daylen', 'daylen', true);
+    this.syncSettingsUI();
+  }
+  syncSettingsUI() {
+    const s = this.settings;
+    const set = (id, v) => { const e = this.el(id); if (e) e.value = v; };
+    set('s-quality', s.quality); set('s-density', s.density); set('s-renderdist', s.renderdist);
+    set('s-fov', s.fov); set('s-weatherfx', s.weatherfx); set('s-life', s.life); set('s-crosshair', s.crosshair);
+    set('s-sens', s.sens); set('s-walk', s.walk); set('s-sprint', s.sprint); set('s-inverty', s.inverty);
+    set('s-mute', s.mute); set('s-volume', s.volume); set('s-daylen', s.daylen);
+    this.updateSettingsVals();
+  }
+  updateSettingsVals() {
+    const s = this.settings;
+    const set = (id, v) => { const e = this.el(id); if (e) e.textContent = v; };
+    set('v-density', s.density + ' col');
+    set('v-renderdist', s.renderdist + ' m');
+    set('v-fov', s.fov + '°');
+    set('v-sens', s.sens.toFixed(1) + '×');
+    set('v-walk', s.walk.toFixed(1) + ' m/s');
+    set('v-sprint', s.sprint.toFixed(1) + ' m/s');
+    set('v-volume', s.volume + '%');
+    set('v-daylen', s.daylen + ' min');
+  }
+  applySettings() {
+    this.updateSettingsVals();
+    if (this.settings.sprint < this.settings.walk + 0.5) this.settings.sprint = this.settings.walk + 0.5;
+    this.renderer.configure(this.settings);
+    this.el('crosshair').style.display =
+      (this.settings.crosshair === 'on' && (this.state === 'playing')) ? 'block' : 'none';
+  }
+  openSettings(from) {
+    this.settingsReturn = from;
+    this.state = 'settings';
+    this.show('settings');
+  }
+  closeSettings() {
+    if (this.settingsReturn === 'pause') { this.state = 'paused'; this.show('pause'); }
+    else { this.state = 'title'; this.show('title'); }
+  }
+
+  // ---------------------------------------------------------------- flow
+  async startGame() {
+    const seedStr = this.el('seed').value.trim();
+    const err = this.el('seed-error');
+    if (!seedStr) { err.textContent = 'Please type a seed — any word or number will do.'; return; }
+    if (seedStr.length > 48) { err.textContent = 'Seed is too long (48 characters max).'; return; }
+    err.textContent = '';
+    this.state = 'loading';
+    this.show('loading');
+    const fill = this.el('loadfill'), text = this.el('loadtext'), log = this.el('loadlog');
+    log.textContent = '';
+    const lines = [];
+    const progress = (p, msg) => {
+      fill.style.width = (p * 100).toFixed(1) + '%';
+      if (msg && (lines.length === 0 || lines[lines.length - 1] !== msg)) {
+        lines.push(msg);
+        if (lines.length > 9) lines.shift();
+        log.textContent = lines.join('\n');
+        text.textContent = msg + '…';
+      }
+    };
+    try {
+      const world = new World(seedStr);
+      await world.generate(progress);
+      this.world = world;
+      this.chunks = new ChunkManager(world);
+      this.player = new Player(world, this.chunks);
+      this.atmosphere = new Atmosphere(world);
+      this.wildlife = new Wildlife(world);
+      this.map = new IslandMap(this.cvMap, world);
+      this.buildLandmarkPieces();
+      this.timeSec = 0;
+      const vis = world.stats.visibility;
+      progress(1, 'Summit sightlines verified: ' + vis.verify.tested + ' positions, ' + vis.verify.violations + ' blocked');
+      await new Promise(r => setTimeout(r, 450));
+      this.enterPlay();
+    } catch (e) {
+      text.textContent = 'World generation failed: ' + e.message;
+      console.error(e);
+      setTimeout(() => { this.state = 'title'; this.show('title'); }, 3500);
+    }
+  }
+  enterPlay() {
+    this.state = 'playing';
+    this.show('none');
+    this.el('hud').style.display = 'block';
+    this.el('crosshair').style.display = this.settings.crosshair === 'on' ? 'block' : 'none';
+    this.cvMap.style.display = 'none';
+    if (AUDIO) { AUDIO.init(); AUDIO.resume(); }
+    this.requestPointer();
+  }
+  pause() {
+    if (this.state !== 'playing' && this.state !== 'map') return;
+    this.state = 'paused';
+    this.cvMap.style.display = 'none';
+    this.el('pause-info').textContent = 'Seed ' + this.world.seedStr + ' · position ' +
+      Math.round(this.player.x) + ', ' + Math.round(this.player.z);
+    this.show('pause');
+    this.el('crosshair').style.display = 'none';
+    document.exitPointerLock && document.exitPointerLock();
+  }
+  resume() {
+    this.state = 'playing';
+    this.show('none');
+    this.el('crosshair').style.display = this.settings.crosshair === 'on' ? 'block' : 'none';
+    this.requestPointer();
+  }
+  toTitle() {
+    this.state = 'title';
+    this.show('title');
+    this.el('hud').style.display = 'none';
+    this.el('crosshair').style.display = 'none';
+    this.cvMap.style.display = 'none';
+    this.world = null; this.player = null; this.chunks = null; this.map = null;
+    this.landmarkPieces = []; this.landmarkColliders = []; this.transients = [];
+    document.exitPointerLock && document.exitPointerLock();
+  }
+  toggleMap() {
+    if (this.state === 'playing') {
+      this.state = 'map';
+      this.cvMap.style.display = 'block';
+      this.el('crosshair').style.display = 'none';
+    } else if (this.state === 'map') {
+      this.state = 'playing';
+      this.cvMap.style.display = 'none';
+      this.el('crosshair').style.display = this.settings.crosshair === 'on' ? 'block' : 'none';
+    }
+  }
+
+  // ---------------------------------------------------------------- input
+  requestPointer() {
+    if (this.cv.requestPointerLock) {
+      try { const p = this.cv.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ }
+    }
+  }
+  bindInput() {
+    document.addEventListener('pointerlockchange', () => {
+      this.pointerLocked = document.pointerLockElement === this.cv;
+      this.el('clickhint').style.display = (!this.pointerLocked && this.state === 'playing') ? 'block' : 'none';
+    });
+    this.cv.addEventListener('click', () => {
+      if (this.state === 'playing' && !this.pointerLocked) { this.requestPointer(); if (AUDIO) { AUDIO.init(); AUDIO.resume(); } }
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (this.state === 'playing' && this.pointerLocked && this.player) {
+        this.player.look(e.movementX || 0, e.movementY || 0, this.settings.sens, this.settings.inverty === 'yes');
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      const k = e.key.toLowerCase();
+      if (this.state === 'playing' || this.state === 'map') {
+        if (k === 'm') { this.toggleMap(); e.preventDefault(); return; }
+        if (k === 'escape') {
+          if (this.state === 'map') { this.toggleMap(); return; }
+          // Esc exits pointer lock automatically; open pause
+          this.pause(); return;
+        }
+      } else if (this.state === 'paused' && k === 'escape') { this.resume(); return; }
+      else if (this.state === 'settings' && k === 'escape') { this.closeSettings(); return; }
+      if (this.state !== 'playing' || !this.player) return;
+      switch (k) {
+        case 'w': case 'arrowup': this.player.keys.f = 1; break;
+        case 's': case 'arrowdown': this.player.keys.b = 1; break;
+        case 'a': case 'arrowleft': this.player.keys.l = 1; break;
+        case 'd': case 'arrowright': this.player.keys.r = 1; break;
+        case 'shift': this.player.keys.sprint = 1; break;
+        case ' ': this.player.keys.jump = 1; e.preventDefault(); break;
+      }
+    });
+    document.addEventListener('keyup', (e) => {
+      if (!this.player) return;
+      switch (e.key.toLowerCase()) {
+        case 'w': case 'arrowup': this.player.keys.f = 0; break;
+        case 's': case 'arrowdown': this.player.keys.b = 0; break;
+        case 'a': case 'arrowleft': this.player.keys.l = 0; break;
+        case 'd': case 'arrowright': this.player.keys.r = 0; break;
+        case 'shift': this.player.keys.sprint = 0; break;
+        case ' ': this.player.keys.jump = 0; break;
+      }
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && this.state === 'playing') this.pause();
+    });
+  }
+
+  // ---------------------------------------------------------------- landmark construction
+  buildLandmarkPieces() {
+    const w = this.world;
+    this.landmarkPieces = [];
+    this.landmarkColliders = [];
+    const pieces = this.landmarkPieces, cols = this.landmarkColliders;
+    const ruinCol = (c) => c === 43 ? COLORS.stone : scaleColor(COLORS.ruin, 0.9);
+    for (const L of w.landmarks) {
+      const rng = new RNG(w.seedStr + ':lm:' + (L.seed || 0));
+      if (L.type === 'ruin') {
+        const n = Math.max(6, Math.round(L.size));
+        for (let i = 0; i < n; i++) {
+          const a = L.rot + (i / n) * TAU;
+          if (rng.chance(0.3)) continue;  // collapsed gaps
+          const rr = L.size * (0.85 + 0.15 * Math.sin(a * 3));
+          const x = L.x + Math.cos(a) * rr, z = L.z + Math.sin(a) * rr;
+          const y = w.heightAt(x, z);
+          const h = rng.range(1.2, 3.2);
+          pieces.push({
+            x, z, y, h, type: -2,
+            pattern: h > 2.2 ? ['+#', '##', '##'] : ['##', '##'],
+            colors: ruinCol,
+          });
+          cols.push({ x, z, y, h, r: 0.9 });
+        }
+        if (rng.chance(0.7)) { // doorway pillar pair
+          const a = L.rot;
+          for (const s of [-1, 1]) {
+            const x = L.x + Math.cos(a) * L.size + Math.cos(a + Math.PI / 2) * s * 1.6;
+            const z = L.z + Math.sin(a) * L.size + Math.sin(a + Math.PI / 2) * s * 1.6;
+            const y = w.heightAt(x, z);
+            pieces.push({ x, z, y, h: 3.6, type: -2, pattern: ['+', '|', '|', '#'], colors: ruinCol });
+            cols.push({ x, z, y, h: 3.6, r: 0.5 });
+          }
+        }
+      } else if (L.type === 'bus' || L.type === 'truck') {
+        const y = w.heightAt(L.x, L.z);
+        const bus = L.type === 'bus';
+        const pat = bus ? [
+          ' ________ ',
+          '|[]i[]i[]|',
+          '|________|',
+          ' o      o ',
+        ] : [
+          '  ____    ',
+          ' |__i_|==]',
+          ' |____|__]',
+          '  o    o  ',
+        ];
+        pieces.push({
+          x: L.x, z: L.z, y, h: 3.1, type: -2, pattern: pat,
+          colors: (c) => c === 111 /*o*/ ? rgb(40, 40, 42) : (c === 105 /*i*/ ? rgb(60, 70, 80) : mixColor(COLORS.rust, COLORS.rust2, hash2(1, c, L.seed) )),
+        });
+        cols.push({ x: L.x, z: L.z, y, h: 3.1, r: 3.6 });
+      } else if (L.type === 'stones') {
+        const n = Math.round(L.size * 0.6);
+        for (let i = 0; i < n; i++) {
+          const a = L.rot + (i / n) * TAU;
+          const x = L.x + Math.cos(a) * L.size, z = L.z + Math.sin(a) * L.size;
+          const y = w.heightAt(x, z);
+          const h = rng.range(1.6, 3.0);
+          pieces.push({ x, z, y, h, type: -2, pattern: ['n', '|', '|'], colors: () => scaleColor(COLORS.stone, 0.8 + 0.3 * (i / n)) });
+          cols.push({ x, z, y, h, r: 0.55 });
+        }
+      } else if (L.type === 'arch') {
+        const y = w.heightAt(L.x, L.z);
+        pieces.push({
+          x: L.x, z: L.z, y, h: 6.5, type: -2,
+          pattern: ['  ___  ', ' /###\\ ', '##   ##', '##   ##', '##   ##'],
+          colors: () => COLORS.cliff,
+        });
+        cols.push({ x: L.x - 2.2, z: L.z, y, h: 6, r: 1.1 });
+        cols.push({ x: L.x + 2.2, z: L.z, y, h: 6, r: 1.1 });
+      } else if (L.type === 'boulders') {
+        const n = Math.round(L.size);
+        for (let i = 0; i < n; i++) {
+          const a = rng.range(0, TAU), d = rng.range(2, L.size * 1.4);
+          const x = L.x + Math.cos(a) * d, z = L.z + Math.sin(a) * d;
+          const y = w.heightAt(x, z);
+          const h = rng.range(1.2, 3.4);
+          pieces.push({
+            x, z, y, h, type: -2,
+            pattern: h > 2.4 ? [' ## ', '####', '####'] : ['##', '##'],
+            colors: () => scaleColor(COLORS.rock, 0.75 + 0.4 * rng.float()),
+          });
+          cols.push({ x, z, y, h, r: h * 0.7 });
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- per-frame
+  tick(dt) {
+    this.timeSec += dt;
+    if (this.state === 'playing' || this.state === 'map' || this.state === 'paused') {
+      if (this.world && this.player) {
+        if (this.state === 'playing') {
+          this.player.update(dt, this.settings);
+          this.atmosphere.update(dt, this.timeSec, this.settings);
+          this.wildlife.update(dt, this);
+          if (AUDIO) AUDIO.update(dt, this);
+        }
+        if (this.state === 'map') {
+          this.map.draw(this.player);
+          if (AUDIO) AUDIO.update(dt, this);
+        } else if (this.state === 'playing') {
+          this.renderer.render(this);
+        }
+        // paused: keep last frame
+      }
+    }
+  }
+}
+
+const GAME = new Game();
+if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.getElementById) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => GAME.boot());
+  } else if (document.getElementById('view')) {
+    GAME.boot();
+  }
+}
+</script>
+</body>
+</html>
